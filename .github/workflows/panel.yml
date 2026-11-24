@@ -8,6 +8,8 @@ on:
     - cron: "*/15 13-21 * * 1-5"   # cada 15 min en horario de mercado de EE.UU. (UTC)
     - cron: "0 */2 * * *"          # cada 2 horas el resto del tiempo
   workflow_dispatch:               # botón "Run workflow" para actualizar a mano
+  push:                            # al subir cambios de código, publicar de inmediato
+    branches: [main]
 
 permissions:
   contents: read
@@ -19,12 +21,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publicar:
+  calcular:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -58,6 +57,7 @@ jobs:
           if [ -z "$PANEL_PRIVATE_JSON" ]; then echo "Falta el secreto PANEL_PRIVATE_JSON"; exit 1; fi
           python panel_mercado.py > motor.log 2>&1 || { echo "El motor falló (detalle oculto: el registro es público)"; exit 1; }
           tail -n 1 motor.log | grep -o "data.js actualizado.*" || true
+          if grep -q "Posiciones desde certificado de Fintual" motor.log; then echo "Fuente de posiciones: certificado de Fintual"; else echo "Fuente de posiciones: secreto PANEL_PRIVATE_JSON"; fi
 
       - name: Armar sitio cifrado
         env:
@@ -68,5 +68,14 @@ jobs:
         with:
           path: site
 
+  # etapa separada (patrón recomendado por GitHub): evita que la publicación no encuentre el sitio recién subido
+  publicar:
+    needs: calcular
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@v4
