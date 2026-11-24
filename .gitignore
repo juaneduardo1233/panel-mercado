@@ -5,6 +5,8 @@
 carteras.json
 info_posiciones.json
 secreto_panel.json
+posiciones_fintual.json
+certificados/
 config.json
 # datos generados y caches (contienen tu cartera o se regeneran solos)
 data.js

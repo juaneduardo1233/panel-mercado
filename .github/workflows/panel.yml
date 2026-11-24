@@ -50,6 +50,9 @@ jobs:
         env:
           PANEL_PRIVATE_JSON: ${{ secrets.PANEL_PRIVATE_JSON }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          # posiciones desde los certificados de Fintual (script de Gmail del usuario; opcional)
+          FINTUAL_URL: ${{ secrets.FINTUAL_URL }}
+          FINTUAL_KEY: ${{ secrets.FINTUAL_KEY }}
           PANEL_REFRESH: "900"
         run: |
           if [ -z "$PANEL_PRIVATE_JSON" ]; then echo "Falta el secreto PANEL_PRIVATE_JSON"; exit 1; fi

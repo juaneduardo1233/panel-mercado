@@ -12,6 +12,7 @@ Uso:
 import argparse
 import json
 import math
+import re
 import os
 import sys
 import time
@@ -543,7 +544,47 @@ def market_status(now=None):
     return "Cerrado"
 
 
+POS_LOCAL = os.path.join(BASE, "posiciones_fintual.json")   # Mac: importadas con fintual.py (fuera de git)
+
+
+def fintual_positions():
+    """Posiciones importadas de los certificados de Fintual. Tienen prioridad sobre el Excel y el
+    secreto porque reflejan cada compra (incluidas las fracciones en las bajadas).
+    - Nube: se piden al script de Gmail del usuario (FINTUAL_URL + FINTUAL_KEY, secretos de GitHub).
+    - Mac: posiciones_fintual.json, creado con  fintual.py <certificado> --guardar"""
+    data = None
+    url, key = os.environ.get("FINTUAL_URL", "").strip(), os.environ.get("FINTUAL_KEY", "").strip()
+    if url and key:
+        try:
+            r = requests.post(url, data={"key": key}, timeout=30)  # POST: la clave no va en la URL
+            r.raise_for_status()
+            data = r.json()
+            if data.get("error"):
+                raise ValueError(data["error"])
+        except Exception as e:
+            log(f"Posiciones de Fintual no disponibles ({type(e).__name__}); se usan las anteriores")
+            data = None
+    elif os.path.exists(POS_LOCAL):
+        data = _load_json(POS_LOCAL, None)
+    if not data or not data.get("positions"):
+        return None
+    out = []
+    for x in data["positions"]:
+        try:
+            sym, units = str(x["sym"]).strip().upper().replace(".", "-"), float(x["units"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if re.match(r"^[A-Z][A-Z0-9\-]{0,9}$", sym) and units > 0:
+            out.append({"sym": sym, "shares": units, "avg": float(x.get("avg") or 0), "xl_price": None})
+    if out:
+        log(f"Posiciones desde certificado de Fintual del {data.get('asof', '?')} ({len(out)} activos)")
+    return out or None
+
+
 def read_portfolio():
+    fp = fintual_positions()
+    if fp:
+        return fp
     if _PRIV is not None:
         return [{"sym": str(x["sym"]).strip().upper(), "shares": float(x["units"]), "avg": float(x.get("avg") or 0),
                  "xl_price": None} for x in _PRIV.get("mine", []) if x.get("sym") and x.get("units")]
