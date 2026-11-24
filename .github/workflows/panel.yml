@@ -5,8 +5,9 @@ name: Actualizar panel
 
 on:
   schedule:
-    - cron: "*/15 13-21 * * 1-5"   # cada 15 min en horario de mercado de EE.UU. (UTC)
-    - cron: "0 */2 * * *"          # cada 2 horas el resto del tiempo
+    # respaldo: el "despertador" principal es el script de Google (gmail_fintual.gs), que pide una
+    # actualización cada 15 min en horario de mercado; las tareas programadas de GitHub se atrasan
+    - cron: "7 */2 * * *"          # cada 2 horas
   workflow_dispatch:               # botón "Run workflow" para actualizar a mano
   push:                            # al subir cambios de código, publicar de inmediato
     branches: [main]

@@ -44,6 +44,25 @@ Fintual › Perfil › Certificados:
 9. Para verlo de inmediato: https://github.com/juaneduardo1233/panel-mercado/actions/workflows/panel.yml
    → **Run workflow**. Si no, se aplica solo en la siguiente actualización programada.
 
+## Despertador del panel (recomendado)
+
+Las tareas programadas de GitHub se atrasan o se saltan. El script de Google hace de reloj: pide a
+GitHub una actualización **cada 15 minutos con el mercado de EE.UU. abierto**, cada 2 horas fuera de él,
+y **de inmediato** cuando llega un certificado de Fintual.
+
+1. Crea un token en https://github.com/settings/personal-access-tokens/new
+   - Nombre `panel-despertador` · Expiración: la más larga que te ofrezca
+   - Repository access: **Only select repositories → panel-mercado**
+   - Permissions › Repository permissions: **Actions: Read and write** (nada más)
+   - Este permiso solo permite lanzar actualizaciones: no puede leer secretos ni cambiar el código.
+2. En Apps Script: **Configuración del proyecto** (engranaje, menú izquierdo) › **Propiedades del script**
+   › **Agregar propiedad del script** → Propiedad: `GITHUB_TOKEN` · Valor: el token → **Guardar**.
+3. Vuelve al **Editor**, elige la función `probarDespertador` y toca **Ejecutar** (Google pedirá un permiso
+   nuevo: "conectarse a un servicio externo"). Debe decir **"OK: GitHub está actualizando el panel."**
+4. Elige `configurar` y **Ejecutar** una vez más (deja la revisión cada 5 minutos; la clave no cambia).
+
+Si el token vence o falla, te llega un correo y el panel sigue con la actualización de respaldo de GitHub.
+
 ## Si algo falla
 - **Te llega "No pude leer un certificado de Fintual":** en Apps Script ejecuta `probarUltimoCertificado`
   y revisa el Registro de ejecución (muestra cuántas compras/filas leyó).

@@ -1,12 +1,17 @@
 /**
  * Panel de Mercado · actualización automática desde los certificados de Fintual.
  *
- * Corre en TU cuenta de Google (Apps Script). Cada 10 minutos revisa tu Gmail buscando los
+ * Corre en TU cuenta de Google (Apps Script). Cada 5 minutos revisa tu Gmail buscando los
  * certificados de Fintual Acciones (PDF), los lee y guarda tus posiciones dentro de tu cuenta.
  * El panel en GitHub las pide a este script con una clave secreta en cada actualización.
  *
  * Lo que sale de tu cuenta de Google: solo símbolo, nombre de la empresa, número de acciones y
  * precio promedio de compra. Tu nombre, RUT y el resto del PDF nunca salen de Google.
+ *
+ * Además hace de "despertador" del panel: le pide a GitHub que se actualice cada 15 minutos en
+ * horario de mercado y cada 2 horas fuera de él (las tareas programadas de GitHub no son confiables),
+ * y de inmediato cuando llega un certificado nuevo. Requiere un token de GitHub con permiso
+ * "Actions: write" guardado en Propiedades del script como GITHUB_TOKEN (opcional).
  *
  * Instalación: ver GUIA_FINTUAL.md (pegar este archivo, activar "Drive API", ejecutar configurar()
  * e implementar como aplicación web).
@@ -15,18 +20,24 @@
 const ETIQUETA = 'panel-fintual';   // se pone a los correos ya procesados
 const BUSQUEDA = 'from:fintual has:attachment filename:pdf newer_than:30d -label:' + ETIQUETA;
 const AVISAR_POR_CORREO = true;     // te manda un resumen a ti mismo cada vez que actualiza
+const REPO = 'juaneduardo1233/panel-mercado';
+const WORKFLOW = 'panel.yml';
+const CADA_MERCADO = 15;            // minutos entre actualizaciones con el mercado de EE.UU. abierto
+const CADA_FUERA = 120;             // minutos entre actualizaciones el resto del tiempo
 
 /* ===================================================================== instalación */
 
-/** Ejecútalo UNA vez: crea la clave secreta y programa la revisión cada 10 minutos. */
+/** Ejecútalo UNA vez (y de nuevo si cambias el script): crea la clave y programa la revisión cada 5 minutos. */
 function configurar() {
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('CLAVE')) props.setProperty('CLAVE', Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''));
   ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'revisarCorreo') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('revisarCorreo').timeBased().everyMinutes(10).create();
+  ScriptApp.newTrigger('revisarCorreo').timeBased().everyMinutes(5).create();
   GmailApp.getUserLabelByName(ETIQUETA) || GmailApp.createLabel(ETIQUETA);
-  Logger.log('Listo. Revisión programada cada 10 minutos.');
+  Logger.log('Listo. Revisión programada cada 5 minutos.');
   Logger.log('Copia esta clave en el secreto FINTUAL_KEY de GitHub:\n' + props.getProperty('CLAVE'));
+  Logger.log(props.getProperty('GITHUB_TOKEN') ? 'Despertador del panel: activo.' :
+    'Despertador del panel: inactivo (agrega GITHUB_TOKEN en Configuración del proyecto › Propiedades del script).');
   revisarCorreo();
 }
 
@@ -56,15 +67,17 @@ function revisarCorreo() {
   const hilos = GmailApp.search(BUSQUEDA, 0, 10);
   // del más antiguo al más nuevo, para que el último certificado sea el que queda
   const mensajes = [];
+  let nuevas = false;
   hilos.forEach(h => h.getMessages().forEach(m => mensajes.push(m)));
   mensajes.sort((a, b) => a.getDate() - b.getDate());
   mensajes.forEach(m => {
     m.getAttachments().filter(a => /pdf/i.test(a.getContentType()) || /\.pdf$/i.test(a.getName())).forEach(pdf => {
-      try { procesar(pdfATexto(pdf), m.getDate()); }
+      try { nuevas = procesar(pdfATexto(pdf), m.getDate()) || nuevas; }
       catch (err) { avisar('No pude leer un certificado de Fintual', 'Error: ' + err.message + '\nEl panel sigue con las posiciones anteriores.'); }
     });
   });
   hilos.forEach(h => h.addLabel(etiqueta));
+  despertarPanel(nuevas);
 }
 
 /** Convierte el PDF a texto con Google Drive (requiere el servicio avanzado "Drive API"). */
@@ -88,7 +101,8 @@ function procesar(texto, fecha) {
     avisar('Panel actualizado desde Fintual',
       `Leí ${n('buy')} compras, ${n('sell')} ventas, ${n('div')} dividendos y ${n('split')} splits.\n` +
       `Posiciones actuales: ${pos.length} · costo total US$ ${pos.reduce((a, p) => a + p.cost, 0).toFixed(2)}.\n` +
-      'El panel las usará en su próxima actualización (15 min en horario de mercado).');
+      (PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN') ? 'El panel se está actualizando ahora (tarda 2–3 minutos).' : 'El panel las usará en su próxima actualización.'));
+    return true;
   } else if (/CERTIFICADO DE INVERSI[ÓO]N/i.test(texto)) {
     const { filas, caja } = leerBalance(texto);
     if (!filas.length) throw new Error('el certificado de inversión no tiene filas legibles');
@@ -104,14 +118,53 @@ function procesar(texto, fecha) {
       avisar('Fintual: falta el historial para actualizar el panel',
         'El certificado de inversión trae activos que el panel aún no conoce: ' + nuevas.join(', ') + '.\n' +
         'Para saber su símbolo y precio de compra, pide en Fintual el "Certificado de transacciones y eventos de capital en Acciones" (Enviar a mi mail). Llegará solo al panel.');
-      return;
+      return false;
     }
     guardar({ asof, source: 'balance', positions: pos, cash: caja });
     avisar('Panel actualizado desde Fintual',
       `Actualicé las cantidades de ${pos.length} posiciones (precios promedio sin cambio).` +
       (caja != null ? `\nEfectivo pendiente de invertir: US$ ${caja.toFixed(2)}.` : '') +
       '\nPara recalcular los precios promedio con tus últimas compras, pide el certificado de transacciones.');
+    return true;
   }
+  return false;
+}
+
+/* ===================================================================== despertador del panel */
+
+/** ¿Toca actualizar? dia: 1=lunes…7=domingo y minutos desde medianoche, ambos en hora de Nueva York. */
+function tocaDespertar(ahoraMs, ultimoMs, dia, minutos) {
+  const mercado = dia <= 5 && minutos >= 9 * 60 + 15 && minutos <= 16 * 60 + 30;
+  const cada = mercado ? CADA_MERCADO : CADA_FUERA;
+  return ahoraMs - ultimoMs >= (cada - 2) * 60000;   // 2 min de margen: el reloj de Google no es exacto
+}
+
+/** Pide a GitHub que actualice el panel (si hay token). forzar = sin esperar el intervalo. */
+function despertarPanel(forzar) {
+  const props = PropertiesService.getScriptProperties();
+  const token = props.getProperty('GITHUB_TOKEN');
+  if (!token) return null;
+  const ahora = new Date(), ny = f => Number(Utilities.formatDate(ahora, 'America/New_York', f));
+  if (!forzar && !tocaDespertar(ahora.getTime(), Number(props.getProperty('ULTIMO_DESPERTAR') || 0), ny('u'), ny('H') * 60 + ny('m'))) return null;
+  const r = UrlFetchApp.fetch('https://api.github.com/repos/' + REPO + '/actions/workflows/' + WORKFLOW + '/dispatches', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: JSON.stringify({ ref: 'main' }),
+    headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+  });
+  const code = r.getResponseCode();
+  if (code === 204) { props.setProperty('ULTIMO_DESPERTAR', String(ahora.getTime())); props.deleteProperty('ERROR_DESPERTAR'); }
+  else if (props.getProperty('ERROR_DESPERTAR') !== String(code)) {   // avisa una sola vez por tipo de error
+    props.setProperty('ERROR_DESPERTAR', String(code));
+    avisar('GitHub no aceptó la actualización del panel',
+      'Código ' + code + (code === 401 || code === 403 || code === 404 ? ': el token GITHUB_TOKEN no es válido, venció o no tiene el permiso "Actions: Read and write" sobre panel-mercado.' : '.') +
+      '\nEl panel seguirá con las actualizaciones automáticas de GitHub (cada 2 horas).');
+  }
+  return code;
+}
+
+/** Prueba manual: pide una actualización ahora y muestra la respuesta de GitHub (204 = aceptada). */
+function probarDespertador() {
+  const code = despertarPanel(true);
+  Logger.log(code === null ? 'Falta GITHUB_TOKEN en Propiedades del script.' : code === 204 ? 'OK: GitHub está actualizando el panel.' : 'GitHub respondió ' + code);
 }
 
 function guardar(data) {
