@@ -1,0 +1,20 @@
+# ---- DATOS PRIVADOS: nunca se suben (el repositorio es público) ----
+*.xlsx
+*.xls
+*.pdf
+carteras.json
+info_posiciones.json
+secreto_panel.json
+config.json
+# datos generados y caches (contienen tu cartera o se regeneran solos)
+data.js
+data.js.tmp
+fundamentals.json
+research.json
+profiles.json
+site/
+# entorno local
+.venv/
+__pycache__/
+.claude/
+.DS_Store

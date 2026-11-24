@@ -1,0 +1,69 @@
+# Actualiza el panel en la nube y lo publica (cifrado) en GitHub Pages.
+# Los datos privados vienen de secretos del repositorio; la salida del motor no se muestra en los
+# registros (que son públicos) para no revelar posiciones.
+name: Actualizar panel
+
+on:
+  schedule:
+    - cron: "*/15 13-21 * * 1-5"   # cada 15 min en horario de mercado de EE.UU. (UTC)
+    - cron: "0 */2 * * *"          # cada 2 horas el resto del tiempo
+  workflow_dispatch:               # botón "Run workflow" para actualizar a mano
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: panel
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -q -r requirements.txt
+
+      - name: Recuperar caché de datos (fundamentales, análisis, clasificaciones)
+        uses: actions/cache@v4
+        with:
+          path: |
+            fundamentals.json
+            research.json
+            profiles.json
+          key: datos-${{ github.run_id }}
+          restore-keys: datos-
+
+      - name: Calcular el panel
+        env:
+          PANEL_PRIVATE_JSON: ${{ secrets.PANEL_PRIVATE_JSON }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          PANEL_REFRESH: "900"
+        run: |
+          if [ -z "$PANEL_PRIVATE_JSON" ]; then echo "Falta el secreto PANEL_PRIVATE_JSON"; exit 1; fi
+          python panel_mercado.py > motor.log 2>&1 || { echo "El motor falló (detalle oculto: el registro es público)"; exit 1; }
+          tail -n 1 motor.log | grep -o "data.js actualizado.*" || true
+
+      - name: Armar sitio cifrado
+        env:
+          PANEL_PASSWORD: ${{ secrets.PANEL_PASSWORD }}
+        run: python publicar.py --out site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

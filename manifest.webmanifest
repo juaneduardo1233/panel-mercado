@@ -1,0 +1,16 @@
+{
+  "name": "Panel de Mercado",
+  "short_name": "Mercado",
+  "description": "Mercado EE.UU., señales de riesgo y mi cartera",
+  "lang": "es",
+  "start_url": "./movil.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

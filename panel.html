@@ -1,0 +1,1419 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel de Mercado</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="sim.js"></script>
+<script src="unlock.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f4f4f1; --surface: #fcfcfb; --surface-2: #f0efec;
+  --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.10);
+  --up: #006300; --down: #c22f2f; --up-mark: #0ca30c; --down-mark: #d03b3b;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  --div-pos: 42,120,214; --div-neg: 227,73,72; --div-mid: 240,239,236;
+  --accent: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321;
+    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10);
+    --up: #2fbf4a; --down: #e66767; --up-mark: #0ca30c; --down-mark: #e66767;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --div-pos: 57,135,229; --div-neg: 230,103,103; --div-mid: 56,56,53;
+    --accent: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321;
+  --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10);
+  --up: #2fbf4a; --down: #e66767; --up-mark: #0ca30c; --down-mark: #e66767;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --div-pos: 57,135,229; --div-neg: 230,103,103; --div-mid: 56,56,53;
+  --accent: #3987e5;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1480px; margin: 0 auto; padding: 0 24px 48px; }
+header.top {
+  position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--page) 88%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
+}
+.top-inner { max-width: 1480px; margin: 0 auto; padding: 14px 24px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.brand { font-size: 17px; font-weight: 650; letter-spacing: -.01em; }
+.brand small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2);
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.live { background: var(--good); box-shadow: 0 0 0 0 rgba(12,163,12,.6); animation: pulse 2s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(12,163,12,0); } 100% { box-shadow: 0 0 0 0 rgba(12,163,12,0); } }
+.spacer { flex: 1; }
+.meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.meta.stale { color: var(--down); font-weight: 600; }
+nav.jump { display: flex; gap: 4px; flex-wrap: wrap; }
+nav.jump a { font-size: 12.5px; color: var(--ink-2); text-decoration: none; padding: 4px 9px; border-radius: 6px; }
+nav.jump a:hover { background: var(--surface-2); color: var(--ink); }
+button { font: inherit; }
+.btn { border: 1px solid var(--border); background: var(--surface); color: var(--ink-2); border-radius: 8px; padding: 5px 10px; cursor: pointer; font-size: 12.5px; }
+.btn:hover { color: var(--ink); }
+.tape { margin: 0 auto; max-width: 1480px; padding: 0 24px; }
+
+section { margin-top: 34px; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.sec-head h2 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.01em; }
+.sec-head p { margin: 0; color: var(--muted); font-size: 13px; }
+.grid { display: grid; gap: 14px; }
+.g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.g-wide { grid-template-columns: 2fr 1fr; }
+@media (max-width: 1100px) { .g2, .g3, .g-wide { grid-template-columns: minmax(0,1fr); } }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.card h3 { margin: 0 0 2px; font-size: 14.5px; font-weight: 620; }
+.card .sub { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.chart-box { position: relative; height: 300px; }
+.chart-box.tall { height: 360px; }
+.chart-box.short { height: 230px; }
+
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; color: var(--ink-2); padding: 4px 9px; font-size: 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button.on { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+input.num { width: 92px; font: inherit; font-size: 12.5px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); text-align: right; }
+select.sel { font: inherit; font-size: 12.5px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
+
+/* KPI tiles */
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 10px; margin-top: 18px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 11px 13px 8px; min-width: 0; }
+.kpi .k-name { font-size: 12px; color: var(--ink-2); display: flex; justify-content: space-between; gap: 6px; }
+.kpi .k-name span:last-child { color: var(--muted); font-size: 11px; }
+.kpi .k-val { font-size: 21px; font-weight: 620; letter-spacing: -.01em; margin-top: 2px; }
+.kpi .k-chg { font-size: 12.5px; font-weight: 560; font-variant-numeric: tabular-nums; }
+.kpi svg { display: block; width: 100%; height: 34px; margin-top: 4px; }
+.up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--muted); }
+
+/* signals */
+.regime { display: grid; grid-template-columns: 300px 1fr; gap: 14px; }
+@media (max-width: 900px) { .regime { grid-template-columns: 1fr; } }
+.gauge-val { font-size: 34px; font-weight: 650; letter-spacing: -.02em; }
+.gauge-bar { height: 10px; border-radius: 6px; margin: 12px 0 6px; position: relative;
+  background: linear-gradient(90deg, var(--critical), var(--serious) 30%, var(--warning) 50%, var(--good) 80%); }
+.gauge-bar i { position: absolute; top: -5px; width: 4px; height: 20px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 0 2px var(--surface); }
+.gauge-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+.counts { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); }
+.sig-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.sig { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); border-left-width: 4px; }
+.sig.good { border-left-color: var(--good); } .sig.warning { border-left-color: var(--warning); }
+.sig.serious { border-left-color: var(--serious); } .sig.critical { border-left-color: var(--critical); }
+.sig-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.sig-name { font-weight: 600; font-size: 13px; }
+.sig-val { font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.sig-txt { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-2); margin-top: 6px; }
+.badge b { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.sig-group { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 0 6px; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; }
+table.t { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.t th { text-align: right; font-weight: 560; color: var(--muted); font-size: 11.5px; padding: 7px 8px; border-bottom: 1px solid var(--axis); white-space: nowrap; cursor: pointer; user-select: none; }
+table.t th:first-child, table.t td:first-child { text-align: left; }
+table.t td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+table.t tr:hover td { background: var(--surface-2); }
+table.t th.sorted { color: var(--ink); }
+.sym { font-weight: 620; } .nm { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.wbar { display: inline-block; height: 6px; border-radius: 3px; background: var(--s1); vertical-align: middle; margin-right: 6px; }
+.range52 { position: relative; display: inline-block; width: 90px; height: 6px; border-radius: 3px; background: var(--grid); vertical-align: middle; }
+.range52 i { position: absolute; top: -3px; width: 3px; height: 12px; border-radius: 2px; background: var(--ink-2); }
+
+/* heatmap */
+table.hm { border-collapse: separate; border-spacing: 2px; font-size: 11.5px; font-variant-numeric: tabular-nums; width: 100%; }
+table.hm td, table.hm th { padding: 6px 4px; text-align: center; border-radius: 4px; }
+table.hm th { color: var(--muted); font-weight: 560; white-space: nowrap; }
+table.hm th.row { text-align: right; padding-right: 8px; }
+table.hm td { cursor: default; }
+
+.stat-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.stat .l { font-size: 12px; color: var(--ink-2); }
+.stat .v { font-size: 22px; font-weight: 640; letter-spacing: -.01em; margin-top: 2px; }
+.stat .d { font-size: 12px; color: var(--muted); }
+.insights { margin: 0; padding: 0; list-style: none; }
+.insights li { padding: 9px 0 9px 22px; border-bottom: 1px solid var(--grid); position: relative; font-size: 13px; color: var(--ink-2); }
+.insights li:last-child { border-bottom: 0; }
+.insights li::before { content: ""; position: absolute; left: 4px; top: 15px; width: 8px; height: 8px; border-radius: 2px; background: var(--c, var(--s1)); }
+.insights b { color: var(--ink); font-weight: 600; }
+.hbars { display: grid; gap: 7px; }
+.hbar { display: grid; grid-template-columns: 150px 1fr 56px; align-items: center; gap: 10px; font-size: 12.5px; }
+.hbar .track { height: 10px; background: var(--surface-2); border-radius: 5px; overflow: hidden; }
+.hbar .fill { height: 100%; background: var(--s1); border-radius: 0 4px 4px 0; }
+.hbar .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+.callout { font-size: 12.5px; color: var(--ink-2); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; margin-top: 10px; }
+footer { margin-top: 40px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 16px; }
+.loading { padding: 80px 0; text-align: center; color: var(--muted); }
+
+/* globos de definición */
+[data-tip] { cursor: help; text-decoration: underline dotted var(--axis); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+#tipbox { position: fixed; z-index: 50; max-width: 300px; padding: 8px 10px; border-radius: 8px;
+  background: var(--surface); color: var(--ink-2); border: 1px solid var(--axis); box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  font-size: 12.5px; line-height: 1.45; font-weight: 400; text-transform: none; letter-spacing: 0; text-align: left;
+  white-space: normal; pointer-events: none; opacity: 0; transition: opacity .12s; }
+#tipbox.on { opacity: 1; }
+
+/* zoom de la proyección */
+.zoom-wrap { display: grid; grid-template-columns: minmax(0,1fr) 52px; gap: 8px; align-items: stretch; }
+.vzoom { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); text-align: center; padding: 30px 0 26px; }
+.vzoom input { writing-mode: vertical-lr; direction: rtl; flex: 1; width: 22px; margin: 0; accent-color: var(--accent); cursor: ns-resize; }
+.hzoom { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+.hzoom input[type=range] { width: 130px; accent-color: var(--accent); cursor: ew-resize; }
+.hzoom b { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; min-width: 92px; }
+@media (max-width: 640px) {
+  .wrap, .top-inner, .tape { padding-left: 16px; padding-right: 16px; }
+  nav.jump { display: none; }
+  .hbar { grid-template-columns: 110px 1fr 50px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">Panel de Mercado <small>Estados Unidos</small></div>
+    <span class="status"><span class="dot" id="dot"></span><span id="mkt">—</span></span>
+    <nav class="jump">
+      <a href="#senales">Señales</a><a href="#indices">Índices</a><a href="#tasas">Tasas</a>
+      <a href="#credito">Crédito y volatilidad</a><a href="#energia">Energía vs tech</a>
+      <a href="#correlaciones">Correlaciones</a><a href="#monitor">Monitor</a><a href="#cartera">Mi cartera</a><a href="#analisis">Análisis</a><a href="#simulador">Simulador</a><a href="#proyeccion">Proyección</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="meta" id="upd">Cargando…</span>
+    <button class="btn" id="themeBtn" title="Cambiar tema">Tema</button>
+  </div>
+</header>
+
+<div class="tape" id="tape"></div>
+
+<main class="wrap">
+  <div id="app"><div class="loading">Cargando datos… Si esto no cambia, ejecuta <b>Iniciar_Panel (.command en Mac / .bat en Windows)</b> para generar <code>data.js</code>.</div></div>
+</main>
+
+<script>
+/* ------------------------------------------------------------------ util */
+const $ = (s, el = document) => el.querySelector(s);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const SERIES = ['--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'];
+const sc = i => css(SERIES[i]);
+let D = null, charts = {}, nextAt = 0;
+const S = { perf: '6M', rates: '1A', credit: '1A', vix: '6M', corrPair: 'XLE_XLK', corr: '1A', energy: '6M',
+            sector: 'chgPct', matrix: '60d', monitor: 'indice', port: '1A', pf: '0', comp: null, sim: null, simBase: null, simR: '1A', sort: { k: 'mv', d: -1 },
+            projH: '20', projScen: 'port', projAporte: '100', projMeta: '50000',
+            projY: 100, projX0: 0, projX1: null, projLog: '0', projHidden: new Set() };
+try { const p = JSON.parse(localStorage.getItem('panel-proj') || '{}'); if (p.a) S.projAporte = p.a; if (p.m) S.projMeta = p.m; } catch (_) {}
+
+const nf = (v, d = 2) => v == null ? '—' : v.toLocaleString('es-CL', { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (v, d = 2, sign = true) => v == null ? '—' : (sign && v > 0 ? '+' : '') + nf(v * 100, d) + '%';
+const usd = (v, d = 2) => v == null ? '—' : (v < 0 ? '−' : '') + 'US$' + nf(Math.abs(v), d);
+const dir = v => v == null || v === 0 ? 'flat' : v > 0 ? 'up' : 'down';
+const arrow = v => v == null || v === 0 ? '' : v > 0 ? '▲ ' : '▼ ';
+const q = s => D.quotes[s] || {};
+// carteras: 0 = la propia (Excel); el resto viene de carteras.json
+const PFS = () => [{ ...D.portfolio, name: 'Mi cartera', source: 'Excel', note: '' }, ...(D.others || [])];
+const PF = () => PFS()[+S.pf] || PFS()[0];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ------------------------------------------------------------------ definiciones (globos al pasar el mouse) */
+const TIPS = {
+  // KPIs (por símbolo)
+  '^GSPC': 'S&P 500: las 500 mayores empresas de EE.UU. Es la referencia del mercado en general. YTD = variación en lo que va del año.',
+  '^IXIC': 'Nasdaq Composite: índice cargado a tecnología y empresas de crecimiento. Más volátil que el S&P.',
+  '^DJI': 'Dow Jones: 30 empresas grandes, con sesgo industrial y "valor". Menos sensible a tecnología.',
+  '^RUT': 'Russell 2000: empresas pequeñas. Refleja la economía doméstica y es sensible al crédito y a las tasas.',
+  '^VIX': 'VIX: volatilidad esperada del S&P a 30 días ("índice del miedo"). Se lee invertido: si baja, es verde. Bajo 15 = calma · 20–30 = tensión · sobre 30 = pánico.',
+  '^IRX': 'Tesoro 3 meses: sigue de cerca la tasa de la Fed. El cambio se mide en pb (1 pb = 0,01 punto porcentual).',
+  '^FVX': 'Tesoro 5 años: tramo medio de la curva, el más sensible a lo que se espera de la Fed.',
+  '^TNX': 'Tesoro 10 años: tasa de referencia para hipotecas y para valorar acciones. Si sube rápido, sufren tecnología, REITs y utilities.',
+  '^TYX': 'Tesoro 30 años: refleja inflación y riesgo fiscal de largo plazo.',
+  'HY': 'Spread High Yield: rendimiento extra de los bonos basura sobre el Tesoro. Bajo 3% = complacencia · 3–4,5% = normal · sobre 5% = estrés. Sin FRED API key se muestra el ETF HYG como sustituto (si HYG cae, el spread se amplía).',
+  'CL=F': 'Petróleo WTI: crudo de referencia en EE.UU. Alzas fuertes presionan inflación y márgenes.',
+  'BZ=F': 'Brent: crudo de referencia internacional. Suele cotizar sobre el WTI.',
+  'GC=F': 'Oro: activo refugio. Sufre cuando suben las tasas reales o el dólar, porque no paga intereses.',
+  'DX-Y.NYB': 'Índice dólar (DXY): dólar contra 6 monedas. Un dólar fuerte presiona a commodities y emergentes.',
+  'CLP=X': 'USD/CLP: pesos chilenos por dólar. Sube cuando el dólar global se fortalece o cae el cobre.',
+  'BTC-USD': 'Bitcoin: termómetro de liquidez y apetito especulativo.',
+  // señales (por nombre)
+  'regime': 'Promedio de las señales: Favorable +1, Atención 0, Riesgo −1, Crítico −2, llevado a escala 0–100. 72+ Risk-on · 58–71 Neutral · 42–57 Cautela · bajo 42 Risk-off. Es un termómetro del entorno, no una señal de compra/venta.',
+  'VIX': 'Nivel de miedo en el mercado de acciones. Bajo 15 = calma · 20–30 = tensión · sobre 30 = pánico.',
+  'Estructura VIX (VIX/VIX3M)': 'VIX ÷ VIX 3 meses. Sobre 1 (backwardation) = el miedo de corto plazo supera al de 3 meses: estrés agudo. Bajo 1 (contango) = normal.',
+  'MOVE (vol. bonos)': 'Volatilidad implícita de los bonos del Tesoro (el "VIX de las tasas"). Sobre ~90 presiona las valoraciones de empresas de crecimiento.',
+  'Spread High Yield (OAS)': 'Rendimiento extra del high yield sobre el Tesoro. Bajo 3% = complacencia · 3–4,5% = normal · sobre 5% = estrés. Importa más la velocidad del alza que el nivel.',
+  'Crédito (proxy HYG/IEF, 1M)': 'Bonos high yield (HYG) vs Tesoro 7–10 años (IEF) en el último mes. Si cae, el crédito rinde peor que el Tesoro: los spreads se amplían. El crédito suele anticipar a las acciones.',
+  'Curva 10Y - 3M': 'Tasa 10 años menos tasa 3 meses. Positiva = sana. Negativa (invertida) = el mercado de bonos descuenta recesión.',
+  'Curva 10Y - 2Y': 'Tasa 10 años menos tasa 2 años. Positiva = sana. Negativa (invertida) = el mercado de bonos descuenta recesión.',
+  'Tasa real 10Y': 'Rendimiento del bono indexado a inflación (TIPS). Tasas reales altas presionan a tecnología y oro.',
+  'Tesoro 10Y (cambio 1M)': 'Cambio de la tasa 10Y en el último mes. Alzas rápidas golpean acciones de larga duración (tech, REITs, utilities); bajas las ayudan.',
+  'S&P 500 vs medias móviles': 'Posición vs la media de 50 (MM50) y 200 días (MM200). Sobre ambas = alcista · entre ambas = corrección dentro de tendencia alcista · bajo ambas = bajista.',
+  'S&P 500 desde máximo 52s': 'Distancia al máximo del último año. −10% = corrección · −20% = mercado bajista.',
+  'Amplitud sectorial': 'Cuántos de los 12 sectores están sobre su media de 50 días. Más sectores = subida sana y amplia.',
+  'Igual ponderado vs S&P (3M)': 'RSP (todas las acciones pesan igual) vs S&P en 3 meses. Si RSP queda atrás, la subida depende de pocas megacaps.',
+  'Apetito por riesgo (XLY/XLP)': 'Consumo discrecional vs consumo básico en 1 mes. Si cae, los inversionistas se ponen defensivos.',
+  'Cobre / Oro': 'El cobre refleja crecimiento; el oro, refugio. Si la razón cae, el mercado espera menor crecimiento.',
+  'Semiconductores vs S&P': 'SMH vs SPY en 1 mes. Semis liderando = apetito por IA; rezagados = riesgo para carteras cargadas a tecnología.',
+  'Petróleo WTI (1M)': 'Cambio del crudo en 1 mes. Alzas fuertes presionan inflación y márgenes.',
+  'Dólar DXY (1M)': 'Cambio del dólar en 1 mes. Un dólar estable o débil favorece a los activos de riesgo.',
+  'Correlación Energía-Tecnología (60d)': 'Correlación de retornos diarios entre XLE y XLK en 60 días. Baja o negativa = la energía diversifica una cartera tecnológica.',
+  // gráficos y tarjetas
+  'perf': 'Todas las series parten en 100 al inicio del período: 112 = +12%. Si el S&P igual ponderado (RSP) se queda atrás, la subida depende de pocas megacaps. 1D = intradía cada 5 min, base 100 = cierre anterior.',
+  'perfTbl': 'Variación porcentual de cada índice en distintos plazos.',
+  'intra': 'Precio del S&P 500 cada 5 minutos. La línea gris es el cierre anterior: sobre ella, el día va al alza.',
+  'rates': 'Rendimiento anual de los bonos del gobierno de EE.UU. a 3 meses, 5, 10 y 30 años. 1D = cada 5 minutos.',
+  'curve': 'Tasas por plazo hoy vs hace 1 mes y 1 año. Pendiente positiva (sube hacia la derecha) = normal; invertida = alerta de recesión.',
+  'slope': 'Tasa 10Y menos 3M, en pb. Bajo cero = curva invertida. Pasar de invertida a positiva ha antecedido recesiones; positiva y estable es sana.',
+  'real': 'Tasa nominal ≈ tasa real (TIPS) + inflación esperada (breakeven). Si sube la tasa real, sufren tecnología y oro. Sin FRED se muestra el diferencial 30Y − 5Y.',
+  'credit': 'Spread High Yield: cuánto más rinden los bonos basura que el Tesoro. Sin FRED se usa HYG/IEF base 100, que cae cuando el spread se amplía. El crédito suele anticipar a las acciones.',
+  'vix': 'VIX (30 días) vs VIX 3M (3 meses). Si el VIX supera al VIX 3M, hay estrés de corto plazo. La línea de referencia está en 20.',
+  'corr': 'Correlación de retornos diarios en ventanas de 20, 60 y 120 días hábiles (−1 a +1). Cerca de 0 o negativa = diversifica; cerca de +1 = ambos responden al mismo factor.',
+  'energy': 'Energía (XLE), tecnología (XLK), semiconductores (SMH) y petróleo WTI, base 100 al inicio del período.',
+  'matrix': 'Correlación entre 14 activos. Azul = se mueven juntos; rojo = opuestos. Si S&P vs Bonos L/P es positiva, los bonos dejan de proteger en caídas.',
+  'sector': 'ETFs sectoriales ordenados por rendimiento. Lideran utilities, consumo básico y salud = mercado defensivo; lideran tech, consumo discrecional e industriales = apetito por riesgo.',
+  // columnas de períodos
+  'p1D': 'Variación respecto al cierre anterior (en tasas, en puntos básicos).',
+  'p1S': 'Variación en 1 semana (5 días hábiles).',
+  'p1M': 'Variación en 1 mes (21 días hábiles).',
+  'p3M': 'Variación en 3 meses (63 días hábiles).',
+  'pYTD': 'Variación en lo que va del año.',
+  'p1A': 'Variación en 12 meses (252 días hábiles).',
+  'ma200': 'Distancia del precio a su media móvil de 200 días. Positiva = tendencia de largo plazo alcista; negativa = bajista.',
+  'rsi': 'Índice de fuerza relativa de 14 días (0–100). Sobre 70 = sobrecompra (rojo); bajo 30 = sobreventa (verde).',
+  'r52': 'Dónde está el precio entre el mínimo (izquierda) y el máximo (derecha) de las últimas 52 semanas.',
+  // cartera
+  'mv': 'Valor actual de las posiciones del Excel con precios en vivo, frente a lo que costaron.',
+  'pl': 'Ganancia o pérdida acumulada desde la compra (valor − costo).',
+  'today': 'Ganancia o pérdida del día, comparada con el S&P 500.',
+  'beta': 'Cuánto se mueve la cartera cuando el S&P se mueve 1%. Sobre 1 = más agresiva que el mercado.',
+  'vol': 'Desviación estándar anualizada de los retornos diarios. Más alta = más oscilaciones.',
+  'var': 'Value at Risk: pérdida que solo se supera 1 de cada 20 días. CVaR = pérdida promedio en esos días malos.',
+  'dd': 'Mayor caída desde un máximo previo en los últimos 12 meses.',
+  'port': 'Valor de tus posiciones actuales simulado hacia atrás (base 100) vs el S&P 500.',
+  'insights': 'Mensajes automáticos sobre concentración, tendencia, RSI y pérdidas de tus posiciones.',
+  'expo': 'Porcentaje del valor de mercado de la cartera en cada sector.',
+  's_total': 'Suma de los montos de todas las posiciones. Si es mayor que el valor actual, la simulación supone un aporte de dinero nuevo; si es menor, un retiro.',
+  's_n': 'Número de posiciones con monto mayor a cero.',
+  's_ratio': 'Retorno esperado anual ÷ volatilidad anual. Cuánto retorno se espera por cada unidad de riesgo: más alto = mejor compensado.',
+  's_r1y': 'Cuánto habría rendido la cartera en el último año si hubiera tenido estas posiciones todo el período (solo precio, sin dividendos).',
+  's_r2y': 'Cuánto habría rendido en los últimos 2 años con estas posiciones (solo precio, sin dividendos).',
+  's_ytd': 'Rendimiento desde el inicio del año con estas posiciones.',
+  's_top3': 'Porcentaje del riesgo total (volatilidad) que explican las 3 posiciones que más aportan. Más alto = riesgo más concentrado.',
+  's_results': 'Compara la cartera actual con la simulada usando el último año de precios. Las métricas de riesgo y rendimiento suponen que las posiciones simuladas se mantuvieron todo el período.',
+  's_delta': 'Diferencia entre la cartera simulada y la actual. Verde = mejora (más retorno esperado, menos volatilidad, menor caída...); rojo = empeora. Beta, valor y número de posiciones no se califican.',
+  's_spy': 'Referencia: el mismo monto total invertido 100% en SPY (S&P 500). Muestra qué entrega la alternativa más simple.',
+  's_chart': 'Valor de la cartera actual, la simulada y el S&P 500 (base 100), aplicando las posiciones de hoy hacia atrás. Útil para ver el comportamiento en caídas, no para predecir.',
+  's_edit': 'Edita los montos en dólares. Los botones aplican reglas comunes de construcción de cartera manteniendo el monto total.',
+  's_cap': 'Ninguna posición puede superar el 10% de la cartera: el exceso se reparte entre las demás en proporción a su tamaño. ETFs amplios como VOO también quedan topados.',
+  's_small': 'Elimina las posiciones que pesan menos del 2% y reparte su monto entre las demás, en proporción a su tamaño.',
+  's_equal': 'Asigna el mismo monto a cada posición.',
+  's_er': 'Retorno anual esperado a 10 años del activo, con el mismo método de la sección Proyección: dividendo + crecimiento de utilidades + cambio de múltiplo. Para bonos, su rendimiento actual.',
+  's_add': 'Puedes agregar cualquier posición de las carteras del panel o ETFs amplios, sectoriales y de bonos (SHY, IEF, TLT, LQD, HYG) para ver su efecto.',
+  't_weight': 'Porcentaje del valor total de la cartera que representa la posición.',
+  't_corr': 'Qué tan juntos se mueven día a día, de −1 (opuestos) a +1 (idénticos). Cerca de 0 = independientes.',
+  't_impact': 'Movimiento estimado de la cartera si el factor tiene el shock indicado: beta × shock. Basado en el último año; es una relación estadística, no causal.',
+  't_plCost': 'Ganancia o pérdida total de la cartera respecto de lo que se pagó por las posiciones (precio promedio de compra).',
+  't_horizon': 'Rendimiento de la cartera en ese plazo, valorizada con sus posiciones actuales. ▲ = le ganó al S&P 500 en el mismo plazo; ▼ = rindió menos.',
+  't_epsEst': 'UPA = utilidad por acción. Promedio de lo que esperan los analistas para el trimestre; entre paréntesis, la estimación más baja y la más alta.',
+  't_revEst': 'Ventas totales del trimestre que esperan los analistas en promedio. B = billones (millones de millones).',
+  't_avgMove': 'Cuánto se movió la acción en promedio (al alza o a la baja) en los 2 días alrededor de sus últimos 4 reportes. Da una idea de la volatilidad que puede traer el próximo.',
+  't_surp': 'Sorpresa = UPA real ÷ UPA esperada − 1 en ese trimestre. Verde = superó lo esperado. Debajo: cómo reaccionó la acción en los 2 días del reporte. Pasa el mouse sobre la celda para ver las cifras.',
+  't_beats': 'En cuántos de los últimos trimestres la utilidad superó lo que esperaban los analistas.',
+  't_fpe': 'Precio ÷ utilidad por acción esperada para los próximos 12 meses. Cuántos años de utilidades futuras pagas por la acción: más alto = más cara.',
+  't_pe': 'Precio ÷ utilidad por acción de los últimos 12 meses (ya reportada).',
+  't_ev': 'Valor de la empresa (capitalización + deuda − caja) ÷ EBITDA (utilidad operativa antes de depreciación). Permite comparar empresas con distinta deuda.',
+  't_revG': 'Crecimiento de las ventas del último trimestre frente al mismo trimestre del año anterior.',
+  't_om': 'Utilidad operativa ÷ ventas: cuánto queda de cada dólar vendido después de los costos del negocio. Más alto = negocio más eficiente o con más poder de precios.',
+  't_roe': 'Retorno sobre el patrimonio: utilidad ÷ capital de los accionistas. Mide cuánto gana la empresa con el dinero invertido por sus dueños.',
+  't_r1y': 'Variación del precio de la acción en las últimas 52 semanas.',
+  't_read': 'Resumen: compara el P/U de los próximos 12 meses con la mediana de los pares (±20%) y lo matiza con el crecimiento de ventas.',
+  't_median': 'Valor del medio entre los pares: la mitad está por sobre y la mitad por debajo. Se usa en vez del promedio para que un caso extremo no lo distorsione.',
+  't_fv': 'Valor por acción que entrega el modelo de utilidades descontadas con los supuestos de la columna Supuestos.',
+  't_fvRange': 'Valor del modelo si la tasa de descuento fuera 1 punto más alta (valor menor) o 1 punto más baja (valor mayor). Muestra cuán sensible es la estimación.',
+  't_upModel': 'Cuánto tendría que subir (o bajar) el precio para llegar al valor del modelo. Sobre +15% = bajo su valor estimado; bajo −15% = sobre su valor estimado.',
+  't_target': 'Precio al que los analistas creen que llegará la acción en 12 meses, en promedio. Entre paréntesis, cuántos analistas la cubren.',
+  't_upTarget': 'Diferencia entre el precio objetivo promedio de los analistas y el precio actual. Suele ser optimista.',
+  't_rec': 'Recomendación de consenso de los analistas que cubren la acción (compra fuerte, compra, mantener, bajo el mercado, venta).',
+  't_assump': 'g = crecimiento anual de la utilidad en los años 2–5; r = tasa de descuento (Tesoro 10Y + beta × prima de riesgo); ROE = rentabilidad usada para estimar cuánto debe reinvertir la empresa para crecer.',
+  'earnNext': 'Cuándo publica resultados cada empresa y qué esperan los analistas. UPA = utilidad por acción. El movimiento típico es la variación promedio (en valor absoluto) de la acción en los 2 días alrededor de sus últimos reportes: una idea de cuánto podría moverse.',
+  'earnHist': 'Sorpresa = UPA real ÷ UPA esperada − 1. Superar seguido las expectativas es buena señal, pero la reacción de la acción depende también de lo que la empresa anuncia para adelante.',
+  'comps': 'Compara la acción con empresas similares. P/U = precio ÷ utilidad; EV/EBITDA = valor de la empresa ÷ flujo operativo. Más caro que los pares se justifica si crece más o es más rentable.',
+  'fairValue': 'Estimación del valor de la acción con un modelo de utilidades descontadas (variante de un DCF). Sensible a los supuestos: el rango muestra el valor si la tasa de descuento fuera 1 punto menor o mayor.',
+  'compare': 'Rendimiento de cada cartera en distintos plazos frente al S&P 500, junto con su riesgo (beta, volatilidad y peor caída del último año).',
+  'factors': 'Correlación y beta diaria de la cartera con cada factor (1 año). Impacto estimado = beta × shock típico. Relación estadística, no causal.',
+  'holdings': 'Detalle por posición. Haz clic en un encabezado para ordenar.',
+  'h_chgPct': 'Variación del precio hoy.', 'h_today': 'Ganancia o pérdida de la posición hoy, en US$.',
+  'h_mv': 'Valor de mercado de la posición.', 'h_weight': 'Porcentaje de la cartera que representa la posición.',
+  'h_pl': 'Ganancia o pérdida acumulada en US$.', 'h_plPct': 'Ganancia o pérdida acumulada en %.',
+  'h_riskContrib': 'Porcentaje de la volatilidad total que aporta la posición. Punto rojo = aporta más de 1,4 veces su peso.',
+  'h_beta': 'Cuánto se mueve la posición cuando el S&P se mueve 1%.',
+  'h_corrOil': 'Correlación de la posición con el petróleo (−1 a +1).',
+  'h_corrRates': 'Correlación con los cambios de la tasa 10Y. Negativa = sufre cuando suben las tasas.',
+  'h_vsMa200': 'Distancia a la media de 200 días. Negativa = tendencia bajista.',
+  'h_rsi': 'RSI 14: sobre 70 = sobrecompra; bajo 30 = sobreventa.',
+  // proyección
+  'proj': 'Monte Carlo de 2.000 escenarios con aportes mensuales. Banda clara = 80% de los casos (P10–P90); oscura = 50% (P25–P75); línea = mediana.',
+  'mu': 'Retorno anual esperado = dividendo + crecimiento de utilidades (consenso) + ajuste del múltiplo P/U.',
+  'sigma': 'Volatilidad anual usada en la simulación (histórica de 2 años).',
+  'sharpe': '(Retorno esperado − tasa libre de riesgo) / volatilidad. Más alto = mejor pago por cada unidad de riesgo.',
+  'hist': 'Rendimiento anual de los últimos 2 años, simulado con las posiciones actuales.',
+  'P10': 'Escenario pesimista: solo 10% de los casos termina peor.', 'P50': 'Mediana: la mitad de los casos termina sobre este valor.',
+  'P90': 'Escenario optimista: solo 10% de los casos termina mejor.', 'hit': 'Porcentaje de escenarios que superan la meta.',
+  'vsSpx': 'Lectura de tu selección frente a simplemente comprar el índice.',
+  'erTbl': 'Retorno anual compuesto esperado a 10 años por posición.', 'dy': 'Rendimiento por dividendo anual.',
+  'pe': 'Precio / utilidad esperada a 12 meses. Más alto = más caro.', 'erPos': 'Retorno esperado total de la posición.',
+  'contrib': 'Peso × retorno esperado: cuánto aporta la posición al retorno esperado de la cartera.'
+};
+const ta = k => TIPS[k] ? ` data-tip="${esc(TIPS[k])}"` : '';
+
+const tipBox = document.createElement('div');
+tipBox.id = 'tipbox';
+document.body.appendChild(tipBox);
+let tipT = 0, tipEl = null;
+const hideTip = () => { clearTimeout(tipT); tipBox.classList.remove('on'); tipEl = null; };
+document.addEventListener('mouseover', e => {
+  const el = e.target.closest('[data-tip]');
+  if (el === tipEl) return;
+  hideTip(); tipEl = el;
+  if (!el) return;
+  tipT = setTimeout(() => {
+    tipBox.textContent = el.dataset.tip;
+    tipBox.style.left = '0px'; tipBox.style.top = '0px'; tipBox.classList.add('on');
+    const r = el.getBoundingClientRect(), w = tipBox.offsetWidth, h = tipBox.offsetHeight;
+    let y = r.bottom + 6;
+    if (y + h > innerHeight - 8) y = r.top - h - 6;
+    tipBox.style.left = Math.min(Math.max(8, r.left), innerWidth - w - 8) + 'px';
+    tipBox.style.top = y + 'px';
+  }, 300);
+});
+document.addEventListener('scroll', hideTip, true);
+
+function fmtPrice(s, v) {
+  if (v == null) return '—';
+  const g = q(s).group;
+  if (g === 'tasa') return nf(v, 3) + '%';
+  if (s === 'CLP=X') return nf(v, 1);
+  if (s.endsWith('=X')) return nf(v, 4);
+  if (v > 10000) return nf(v, 0);
+  return nf(v, 2);
+}
+
+function rangeStart(r, dates = D.dates) {
+  const n = dates.length;
+  const back = { '1D': 1, '5D': 5, '1M': 21, '3M': 63, '6M': 126, '1A': 252, '2A': n };
+  if (r === 'YTD') {
+    const y = dates[n - 1].slice(0, 4);
+    const i = dates.findIndex(d => d.startsWith(y));
+    return Math.max(0, i - 1);
+  }
+  return Math.max(0, n - 1 - (back[r] || n));
+}
+function rebase(arr) {
+  const b = arr.find(v => v != null);
+  return arr.map(v => v == null || !b ? null : v / b * 100);
+}
+function segHTML(key, opts) {
+  return `<div class="seg" data-key="${key}">` + opts.map(o => {
+    const [v, l] = Array.isArray(o) ? o : [o, o];
+    return `<button data-v="${v}" class="${S[key] === v ? 'on' : ''}">${l}</button>`;
+  }).join('') + '</div>';
+}
+// 1D = intradía cada 5 min; 5D = última semana con datos diarios
+const RANGES = ['1D', '5D', '1M', '3M', '6M', 'YTD', '1A', '2A'];
+const RANGES_DAILY = RANGES.slice(1);
+
+/* ------------------------------------------------------------------ charts */
+const crosshair = {
+  id: 'crosshair',
+  afterDatasetsDraw(c) {
+    const a = c.tooltip && c.tooltip.getActiveElements();
+    if (!a || !a.length || c.config.type !== 'line') return;
+    const x = a[0].element.x, { top, bottom } = c.chartArea, ctx = c.ctx;
+    ctx.save(); ctx.strokeStyle = css('--axis'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); ctx.restore();
+  }
+};
+const refLine = {
+  id: 'refLine',
+  beforeDatasetsDraw(c, _, o) {
+    if (o.y == null) return;
+    const y = c.scales.y.getPixelForValue(o.y), { left, right, top, bottom } = c.chartArea, ctx = c.ctx;
+    if (y < top || y > bottom) return;
+    ctx.save(); ctx.strokeStyle = css('--axis'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke(); ctx.restore();
+  }
+};
+
+function baseOpts({ yFmt = v => nf(v, 1), tipFmt, ref = null, min, max, legend = true, xTicks = 7 } = {}) {
+  const ink2 = css('--ink-2'), muted = css('--muted'), grid = css('--grid');
+  return {
+    responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+    interaction: { mode: 'index', intersect: false },
+    layout: { padding: { top: 4 } },
+    plugins: {
+      legend: { display: legend, position: 'top', align: 'start',
+        labels: { color: ink2, boxWidth: 10, boxHeight: 10, useBorderRadius: true, borderRadius: 2, font: { size: 12 }, padding: 12 } },
+      tooltip: {
+        backgroundColor: css('--surface'), titleColor: css('--ink'), bodyColor: ink2, borderColor: css('--axis'), borderWidth: 1,
+        padding: 10, boxWidth: 8, boxHeight: 8, usePointStyle: true,
+        callbacks: { label: c => ` ${c.dataset.label}: ${(tipFmt || yFmt)(c.parsed.y)}` }
+      },
+      refLine: { y: ref }
+    },
+    scales: {
+      x: { grid: { display: false }, border: { color: css('--axis') },
+        ticks: { color: muted, maxTicksLimit: xTicks, maxRotation: 0, font: { size: 11 } } },
+      y: { grid: { color: grid }, border: { display: false }, min, max,
+        ticks: { color: muted, font: { size: 11 }, callback: yFmt, maxTicksLimit: 6 } }
+    },
+    elements: { point: { radius: 0, hoverRadius: 4, hitRadius: 8 }, line: { borderWidth: 2, tension: 0 } }
+  };
+}
+function lineDS(label, data, color, extra = {}) {
+  return { label, data, borderColor: color, backgroundColor: color, spanGaps: true, pointHoverBackgroundColor: color,
+           pointHoverBorderColor: css('--surface'), pointHoverBorderWidth: 2, ...extra };
+}
+function draw(id, cfg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (charts[id]) charts[id].destroy();
+  cfg.plugins = [crosshair, refLine];
+  charts[id] = new Chart(el, cfg);
+}
+const shortDate = d => { const [y, m, dd] = d.split('-'); return `${dd}-${m}-${y.slice(2)}`; };
+
+/* ------------------------------------------------------------------ sparkline */
+function spark(s, invert) {
+  const it = D.intraday[s];
+  let vals, base;
+  if (it && it.c.length > 3) { vals = it.c; base = it.prev; }
+  else { vals = D.series[s] ? D.series[s].slice(-30) : []; base = vals[0]; }
+  vals = vals.filter(v => v != null);
+  if (vals.length < 2) return '<svg></svg>';
+  const all = base != null ? vals.concat([base]) : vals;
+  const mn = Math.min(...all), mx = Math.max(...all), W = 160, H = 34, pad = 3;
+  const x = i => i / (vals.length - 1) * W, y = v => mx === mn ? H / 2 : pad + (1 - (v - mn) / (mx - mn)) * (H - 2 * pad);
+  const last = vals[vals.length - 1], up = base == null ? last >= vals[0] : last >= base;
+  const good = invert ? !up : up;
+  const col = good ? 'var(--up-mark)' : 'var(--down-mark)';
+  const d = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  const bl = base != null ? `<line x1="0" x2="${W}" y1="${y(base)}" y2="${y(base)}" stroke="var(--axis)" stroke-dasharray="2 3" stroke-width="1"/>` : '';
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bl}<path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+/* ------------------------------------------------------------------ render */
+function render() {
+  if (!window.PANEL_DATA) return;
+  D = window.PANEL_DATA;
+  hideTip();
+  const app = $('#app');
+  const y = window.scrollY;
+  app.innerHTML = [kpisHTML(), signalsHTML(), indicesHTML(), ratesHTML(), creditHTML(), energyHTML(),
+                   corrHTML(), sectorsHTML(), monitorHTML(), portfolioHTML(), analysisHTML(), simHTML(), projHTML(), footerHTML()].join('');
+  window.scrollTo(0, y);
+  drawAll();
+  header();
+}
+
+function header() {
+  const open = D.marketStatus.startsWith('Abierto');
+  $('#dot').className = 'dot' + (open ? ' live' : '');
+  $('#mkt').textContent = 'NYSE · ' + D.marketStatus;
+  updMeta();
+}
+function updMeta() {
+  if (!D) return;
+  const age = Math.round(Date.now() / 1000 - D.epoch);
+  const left = Math.max(0, Math.round((nextAt - Date.now()) / 1000));
+  const el = $('#upd');
+  const stale = age > Math.max(600, D.refreshSeconds * 4);
+  el.className = 'meta' + (stale ? ' stale' : '');
+  el.title = 'Datos generados: ' + D.generatedLocal;
+  el.textContent = `Datos ${D.generatedLocal.slice(-8)} · hace ${age < 120 ? age + ' s' : Math.round(age / 60) + ' min'}` +
+    (stale ? ' · desactualizado: ¿corre Iniciar_Panel (.command en Mac / .bat en Windows)?' : ` · próx. ${left} s`);
+}
+
+/* KPI tiles */
+function kpisHTML() {
+  const tiles = [['^GSPC', 'S&P 500'], ['^IXIC', 'Nasdaq'], ['^DJI', 'Dow Jones'], ['^RUT', 'Russell 2000'],
+    ['^VIX', 'VIX', true], ['^IRX', 'Tesoro 3M'], ['^FVX', 'Tesoro 5Y'], ['^TNX', 'Tesoro 10Y'], ['^TYX', 'Tesoro 30Y'],
+    ['HY'], ['CL=F', 'Petróleo WTI'], ['BZ=F', 'Brent'], ['GC=F', 'Oro'], ['DX-Y.NYB', 'Dólar DXY'], ['CLP=X', 'USD/CLP'], ['BTC-USD', 'Bitcoin']];
+  return `<div class="kpis">` + tiles.map(([s, name, inv]) => {
+    if (s === 'HY') return hyTile();
+    const x = q(s); if (x.price == null) return '';
+    const chg = x.group === 'tasa' ? `${x.chgBp > 0 ? '+' : ''}${nf(x.chgBp, 1)} pb` : pct(x.chgPct);
+    const cls = inv ? dir(-x.chgPct) : dir(x.chgPct);
+    return `<div class="kpi">
+      <div class="k-name"><span${ta(s)}>${name}</span><span>YTD ${pct(x.ytd, 1)}</span></div>
+      <div class="k-val" title="${esc(x.name)} · ${x.time} NY">${fmtPrice(s, x.price)}</div>
+      <div class="k-chg ${cls}">${arrow(x.chgPct)}${chg}</div>${spark(s, inv)}</div>`;
+  }).join('') + `</div>`;
+}
+function hyTile() {
+  const f = D.fred.BAMLH0A0HYM2;
+  if (f) {
+    const v = f.values, n = v.length, ch = (v[n - 1] - v[n - 2]) * 100, ch1m = (v[n - 1] - v[Math.max(0, n - 22)]) * 100;
+    const pts = v.slice(-60), mn = Math.min(...pts), mx = Math.max(...pts);
+    const d = pts.map((p, i) => `${i ? 'L' : 'M'}${(i / (pts.length - 1) * 160).toFixed(1)},${(3 + (1 - (p - mn) / (mx - mn || 1)) * 28).toFixed(1)}`).join('');
+    return `<div class="kpi" title="ICE BofA US High Yield Index Option-Adjusted Spread · FRED (${f.dates[n - 1]})">
+      <div class="k-name"><span${ta('HY')}>HY OAS (ICE BofA)</span><span>1M ${ch1m > 0 ? '+' : ''}${nf(ch1m, 0)} pb</span></div>
+      <div class="k-val">${nf(v[n - 1], 2)}%</div>
+      <div class="k-chg ${dir(-ch)}">${arrow(ch)}${ch > 0 ? '+' : ''}${nf(ch, 0)} pb</div>
+      <svg viewBox="0 0 160 34" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="${ch1m > 0 ? 'var(--down-mark)' : 'var(--up-mark)'}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg></div>`;
+  }
+  const h = q('HYG');
+  return `<div class="kpi" title="Sin acceso a FRED: se muestra HYG como proxy del spread High Yield. Agrega tu FRED API key en config.json.">
+    <div class="k-name"><span${ta('HY')}>High Yield (HYG)*</span><span>YTD ${pct(h.ytd, 1)}</span></div>
+    <div class="k-val">${fmtPrice('HYG', h.price)}</div>
+    <div class="k-chg ${dir(h.chgPct)}">${arrow(h.chgPct)}${pct(h.chgPct)}</div>${spark('HYG')}</div>`;
+}
+
+/* signals */
+const STATE = { good: ['Favorable', 1], warning: ['Atención', 0], serious: ['Riesgo', -1], critical: ['Crítico', -2] };
+function signalsHTML() {
+  const sig = D.signals;
+  const score = sig.reduce((a, s) => a + STATE[s.state][1], 0) / sig.length; // -2..1
+  const pos = Math.round((score + 2) / 3 * 100);
+  const label = pos >= 72 ? 'Risk-on' : pos >= 58 ? 'Neutral' : pos >= 42 ? 'Cautela' : 'Risk-off';
+  const counts = Object.keys(STATE).map(k => `<span class="badge"><b style="background:var(--${k})"></b>${STATE[k][0]}: ${sig.filter(s => s.state === k).length}</span>`).join('');
+  const groups = [...new Set(sig.map(s => s.group))];
+  return `<section id="senales"><div class="sec-head"><h2>Lectura del mercado</h2>
+    <p>${sig.length} señales cuantitativas: riesgo, crédito, tasas, tendencia, ciclo y macro</p></div>
+    <div class="regime">
+      <div class="card"><h3${ta('regime')}>Régimen de riesgo</h3><p class="sub">Promedio ponderado de todas las señales</p>
+        <div class="gauge-val">${label}</div>
+        <div class="gauge-bar"><i style="left:calc(${pos}% - 2px)"></i></div>
+        <div class="gauge-scale"><span>Risk-off</span><span>Neutral</span><span>Risk-on</span></div>
+        <div class="counts">${counts}</div>
+        <div class="callout">Úsalo como termómetro, no como señal de compra/venta: indica si el entorno premia tomar riesgo o protegerse.</div>
+      </div>
+      <div class="card">${groups.map(g => `<div class="sig-group">${g}</div><div class="sig-grid">` +
+        sig.filter(s => s.group === g).map(s => `<div class="sig ${s.state}"><div class="sig-top"><span class="sig-name"${ta(s.name)}>${esc(s.name)}</span>
+          <span class="sig-val">${esc(s.value)}</span></div><div class="sig-txt">${esc(s.text)}</div>
+          <span class="badge"><b style="background:var(--${s.state})"></b>${STATE[s.state][0]}</span></div>`).join('') + '</div>').join('')}
+      </div>
+    </div></section>`;
+}
+
+function indicesHTML() {
+  return `<section id="indices"><div class="sec-head"><h2>Índices y amplitud</h2><p>Rendimiento relativo, base 100 al inicio del período</p></div>
+    <div class="grid g-wide">
+      <div class="card"><div class="card-head"><div><h3${ta('perf')}>Rendimiento comparado</h3><p class="sub">S&P 500, Nasdaq, Dow, Russell 2000 y S&P igual ponderado</p></div>${segHTML('perf', RANGES)}</div>
+        <div class="chart-box tall"><canvas id="cPerf"></canvas></div>
+        <p class="note">Si el S&P igual ponderado (RSP) se queda atrás, la subida depende de pocas megacaps. Si Russell lidera, el mercado descuenta crecimiento doméstico y tasas más bajas.</p></div>
+      <div class="card"><h3${ta('perfTbl')}>Rendimiento por período</h3><p class="sub">Variación porcentual</p>
+        <div class="tbl-wrap"><table class="t"><thead><tr><th>Índice</th><th${ta('p1D')}>1D</th><th${ta('p1M')}>1M</th><th${ta('pYTD')}>YTD</th><th${ta('p1A')}>1A</th></tr></thead><tbody>
+        ${['^GSPC', '^IXIC', '^NDX', '^DJI', '^RUT', 'RSP'].map(s => { const x = q(s); return `<tr><td>${esc(x.name)}</td>
+          <td class="${dir(x.chgPct)}">${pct(x.chgPct)}</td><td class="${dir(x.r1m)}">${pct(x.r1m, 1)}</td>
+          <td class="${dir(x.ytd)}">${pct(x.ytd, 1)}</td><td class="${dir(x.r1y)}">${pct(x.r1y, 1)}</td></tr>`; }).join('')}
+        </tbody></table></div>
+        <h3 style="margin-top:18px"><span${ta('intra')}>Intradía S&P 500</span></h3><p class="sub">Cada 5 min · línea gris = cierre anterior</p>
+        <div class="chart-box short"><canvas id="cIntra"></canvas></div></div>
+    </div></section>`;
+}
+
+function ratesHTML() {
+  return `<section id="tasas"><div class="sec-head"><h2>Tasas del Tesoro y curva</h2><p>Bonos a 3 meses, 5, 10 y 30 años</p></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-head"><div><h3${ta('rates')}>Rendimientos del Tesoro</h3><p class="sub">% anual</p></div>${segHTML('rates', RANGES)}</div>
+        <div class="chart-box"><canvas id="cRates"></canvas></div></div>
+      <div class="card"><h3${ta('curve')}>Curva de rendimientos</h3><p class="sub">Hoy vs hace 1 mes y 1 año</p>
+        <div class="chart-box"><canvas id="cCurve"></canvas></div></div>
+      <div class="card"><div class="card-head"><div><h3${ta('slope')}>Pendiente 10Y − 3M</h3><p class="sub">Puntos básicos · bajo cero = curva invertida</p></div></div>
+        <div class="chart-box short"><canvas id="cSlope"></canvas></div>
+        <p class="note">Una curva que pasa de invertida a positiva (“des-inversión”) históricamente ha coincidido con la antesala de recesiones; una pendiente positiva estable es sana.</p></div>
+      <div class="card"><h3${ta('real')}>Tasas reales e inflación esperada</h3><p class="sub">${D.fred.DFII10 ? 'TIPS 10Y y breakeven 10Y (FRED)' : 'Requiere FRED API key (config.json)'}</p>
+        <div class="chart-box short"><canvas id="cReal"></canvas></div>
+        <p class="note">Tasa nominal ≈ tasa real + inflación esperada. Si sube la tasa real, sufren tecnología de larga duración y oro.</p></div>
+    </div></section>`;
+}
+
+function creditHTML() {
+  const ok = D.fredOk;
+  return `<section id="credito"><div class="sec-head"><h2>Crédito y volatilidad</h2><p>El crédito suele anticipar a la renta variable</p></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-head"><div><h3${ta('credit')}>${ok ? 'ICE BofA US High Yield OAS' : 'High Yield vs Tesoro (proxy del spread)'}</h3>
+        <p class="sub">${ok ? 'Spread ajustado por opciones, % · y grado de inversión' : 'HYG / IEF base 100 · cae cuando el spread se amplía'}</p></div>${segHTML('credit', ok ? RANGES_DAILY : RANGES)}</div>
+        <div class="chart-box"><canvas id="cCredit"></canvas></div>
+        ${ok ? '<p class="note">Bajo 3%: complacencia. 3–4,5%: normal. Sobre 5–6%: estrés. Las alzas rápidas importan más que el nivel.</p>'
+             : '<div class="callout">El sitio de FRED no responde desde esta red. Para ver el <b>ICE BofA US High Yield OAS</b> real, obtén una API key gratuita en fredaccount.stlouisfed.org/apikeys y pégala en <code>config.json</code> (campo <code>fred_api_key</code>).</div>'}
+      </div>
+      <div class="card"><div class="card-head"><div><h3${ta('vix')}>Volatilidad: VIX y VIX 3M</h3><p class="sub">Si el VIX supera al VIX 3M, hay estrés de corto plazo</p></div>${segHTML('vix', RANGES)}</div>
+        <div class="chart-box"><canvas id="cVix"></canvas></div>
+        <p class="note">MOVE (volatilidad de bonos): <b>${nf(q('^MOVE').price, 1)}</b> · SKEW (demanda de cobertura de cola): <b>${nf(q('^SKEW').price, 1)}</b></p></div>
+    </div></section>`;
+}
+
+function energyHTML() {
+  const r = D.rolling[S.corrPair];
+  const last = k => { const a = r[k].filter(v => v != null); return a[a.length - 1]; };
+  const opts = Object.entries(D.rolling).map(([k, v]) => `<option value="${k}" ${k === S.corrPair ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
+  return `<section id="energia"><div class="sec-head"><h2>Energía vs tecnología</h2><p>Correlación móvil de retornos diarios y desempeño relativo</p></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-head"><div><h3${ta('corr')}>Correlación móvil</h3><p class="sub">Ventanas de 20, 60 y 120 días hábiles</p></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><select class="sel" id="corrSel">${opts}</select>${segHTML('corr', ['3M', '6M', '1A', '2A'])}</div></div>
+        <div class="chart-box"><canvas id="cCorr"></canvas></div>
+        <div class="callout">Actual: 20d <b>${nf(last('c20'), 2)}</b> · 60d <b>${nf(last('c60'), 2)}</b> · 120d <b>${nf(last('c120'), 2)}</b>.
+          Correlación cercana a 0 o negativa = la energía diversifica una cartera tecnológica. Cuando sube hacia +1, ambos sectores responden al mismo factor (tasas, liquidez) y la diversificación desaparece.</div></div>
+      <div class="card"><div class="card-head"><div><h3${ta('energy')}>Energía, tecnología, semis y petróleo</h3><p class="sub">Base 100</p></div>${segHTML('energy', RANGES)}</div>
+        <div class="chart-box"><canvas id="cEnergy"></canvas></div>
+        <p class="note">WTI hoy: <b>US$${nf(q('CL=F').price, 2)}</b> (${pct(q('CL=F').chgPct)}) · Brent: <b>US$${nf(q('BZ=F').price, 2)}</b> · Gas natural: <b>US$${nf(q('NG=F').price, 2)}</b></p></div>
+    </div></section>`;
+}
+
+function corrHTML() {
+  const m = D.matrix, M = m[S.matrix], L = m.labels;
+  const short = { '^GSPC': 'S&P', 'QQQ': 'Nasdaq', 'SMH': 'Semis', 'XLK': 'Tech', 'XLE': 'Energía', 'CL=F': 'WTI', '^TNX': 'Tasa 10Y',
+    'TLT': 'Bonos L/P', 'HYG': 'High Yield', 'GC=F': 'Oro', 'DX-Y.NYB': 'Dólar', 'BTC-USD': 'Bitcoin', 'XLU': 'Utilities', 'XLRE': 'Inmob.' };
+  const nm = s => short[s] || s;
+  const cell = v => {
+    if (v == null) return '<td>—</td>';
+    const a = Math.min(1, Math.abs(v)), rgb = v >= 0 ? css('--div-pos') : css('--div-neg'), mid = css('--div-mid');
+    const [r1, g1, b1] = mid.split(',').map(Number), [r2, g2, b2] = rgb.split(',').map(Number);
+    const mix = (p, q2) => Math.round(p + (q2 - p) * a);
+    const bg = `rgb(${mix(r1, r2)},${mix(g1, g2)},${mix(b1, b2)})`;
+    const ink = a > .55 ? '#fff' : 'var(--ink)';
+    return `<td style="background:${bg};color:${ink}" title="${nf(v, 2)}">${nf(v, 2)}</td>`;
+  };
+  return `<section id="correlaciones"><div class="sec-head"><h2>Mapa de correlaciones</h2><p>Retornos diarios (para la tasa 10Y: cambios en puntos)</p></div>
+    <div class="card"><div class="card-head"><div><h3${ta('matrix')}>Matriz de correlación</h3><p class="sub">Azul = se mueven juntos · rojo = se mueven en sentido opuesto</p></div>${segHTML('matrix', [['60d', '60 días'], ['1y', '1 año']])}</div>
+    <div class="tbl-wrap"><table class="hm"><thead><tr><th></th>${L.map(s => `<th>${nm(s)}</th>`).join('')}</tr></thead>
+    <tbody>${L.map((s, i) => `<tr><th class="row">${nm(s)}</th>${M[i].map(cell).join('')}</tr>`).join('')}</tbody></table></div>
+    <p class="note">Lectura clave: si “Tasa 10Y” vs “Nasdaq” es muy negativa, el mercado tecnológico está siendo dirigido por las tasas. Si “S&P” vs “Bonos L/P” es positiva, los bonos dejan de cubrir caídas de acciones.</p></div></section>`;
+}
+
+function sectorsHTML() {
+  return `<section id="sectores"><div class="sec-head"><h2>Rotación sectorial</h2><p>ETFs sectoriales SPDR + semiconductores</p></div>
+    <div class="card"><div class="card-head"><div><h3${ta('sector')}>Rendimiento por sector</h3><p class="sub">Ordenado de mayor a menor</p></div>
+      ${segHTML('sector', [['chgPct', '1D'], ['r1w', '1S'], ['r1m', '1M'], ['r3m', '3M'], ['ytd', 'YTD'], ['r1y', '1A']])}</div>
+      <div class="chart-box" style="height:380px"><canvas id="cSector"></canvas></div>
+      <p class="note">Liderazgo de utilities, consumo básico y salud = mercado defensivo. Liderazgo de tecnología, consumo discrecional e industriales = apetito por riesgo.</p></div></section>`;
+}
+
+const MON_GROUPS = [['indice', 'Índices'], ['tasa', 'Tasas'], ['credito', 'Renta fija'], ['vol', 'Volatilidad'], ['commodity', 'Commodities'], ['fx', 'Divisas y cripto'], ['sector', 'Sectores']];
+function monitorHTML() {
+  const rows = Object.entries(D.quotes).filter(([, x]) => x.group === S.monitor);
+  return `<section id="monitor"><div class="sec-head"><h2>Monitor de activos</h2><p>Precio, momentum y posición en el rango de 52 semanas</p></div>
+    <div class="card"><div class="card-head"><div></div>${segHTML('monitor', MON_GROUPS)}</div>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th>Instrumento</th><th>Último</th><th${ta('p1D')}>1D</th><th${ta('p1S')}>1S</th><th${ta('p1M')}>1M</th><th${ta('p3M')}>3M</th><th${ta('pYTD')}>YTD</th><th${ta('p1A')}>1A</th><th${ta('ma200')}>vs MM200</th><th${ta('rsi')}>RSI 14</th><th${ta('r52')}>Rango 52 semanas</th><th>Hora NY</th></tr></thead><tbody>
+    ${rows.map(([s, x]) => {
+      const pos = x.hi52 > x.lo52 ? (x.price - x.lo52) / (x.hi52 - x.lo52) * 100 : 50;
+      const vs = x.ma200 ? x.price / x.ma200 - 1 : null;
+      return `<tr><td><span class="sym">${esc(s.replace('^', ''))}</span><span class="nm">${esc(x.name)}</span></td><td>${fmtPrice(s, x.price)}</td>
+        <td class="${dir(x.chgPct)}">${x.group === 'tasa' ? (x.chgBp > 0 ? '+' : '') + nf(x.chgBp, 1) + ' pb' : pct(x.chgPct)}</td>
+        <td class="${dir(x.r1w)}">${pct(x.r1w, 1)}</td><td class="${dir(x.r1m)}">${pct(x.r1m, 1)}</td><td class="${dir(x.r3m)}">${pct(x.r3m, 1)}</td>
+        <td class="${dir(x.ytd)}">${pct(x.ytd, 1)}</td><td class="${dir(x.r1y)}">${pct(x.r1y, 1)}</td><td class="${dir(vs)}">${pct(vs, 1)}</td>
+        <td>${rsiCell(x.rsi)}</td>
+        <td title="Mín ${fmtPrice(s, x.lo52)} · Máx ${fmtPrice(s, x.hi52)}"><span class="range52"><i style="left:calc(${pos.toFixed(0)}% - 1px)"></i></span></td>
+        <td style="color:var(--muted)">${x.time}</td></tr>`;
+    }).join('')}</tbody></table></div>
+    <p class="note">RSI sobre 70 = sobrecompra; bajo 30 = sobreventa. El marcador del rango muestra dónde está el precio entre el mínimo y el máximo de 52 semanas.</p></div></section>`;
+}
+const rsiCell = v => v == null ? '—' : v >= 70 ? `<b class="down">${nf(v, 0)}</b>` : v <= 30 ? `<b class="up">${nf(v, 0)}</b>` : nf(v, 0);
+
+/* portfolio */
+// shocks típicos por factor (tasa 10Y en puntos porcentuales: 0.10 = 10 pb)
+const SHOCKS = { 'Petróleo': 0.10, 'Tasa 10Y': 0.10, 'Energía': 0.05, 'Tecnología': 0.05, 'Semiconductores': 0.05, 'Dólar': 0.02, 'High Yield': 0.01 };
+function portfolioHTML() {
+  const pfs = PFS(), P = PF(), T = P.totals, st = P.stats, mine = P === pfs[0];
+  const k = S.sort.k, d = S.sort.d;
+  const rows = [...P.rows].sort((a, b) => typeof a[k] === 'string' ? -d * a[k].localeCompare(b[k]) : d * ((a[k] ?? -1e9) - (b[k] ?? -1e9)));
+  const maxW = Math.max(...P.rows.map(r => r.weight));
+  const col = (key, label) => `<th data-sort="${key}"${ta('h_' + key)} class="${k === key ? 'sorted' : ''}">${label}${k === key ? (d > 0 ? ' ↑' : ' ↓') : ''}</th>`;
+  const maxSec = P.sectors[0][1];
+  const subt = mine ? 'Posiciones del Excel valorizadas con precios en vivo'
+    : `${esc(P.source || 'carteras.json')} · ${P.rows.length} posiciones valorizadas con precios en vivo`;
+  return `<section id="cartera"><div class="sec-head"><h2>${mine ? 'Mi cartera' : esc(P.name)}</h2><p>${subt}</p></div>
+    ${pfs.length > 1 ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:-4px 0 14px"><span class="sub" style="margin:0">Cartera:</span>${segHTML('pf', pfs.map((x, i) => [String(i), x.name]))}</div>` : ''}
+    ${P.note ? `<p class="note" style="margin:-6px 0 14px">⚠️ ${esc(P.note)}</p>` : ''}
+    <div class="stat-row">
+      <div class="stat"><div class="l"><span${ta('mv')}>Valor de mercado</span></div><div class="v">${usd(T.mv)}</div><div class="d">Costo ${usd(T.cost)}</div></div>
+      <div class="stat"><div class="l"><span${ta('pl')}>Resultado total</span></div><div class="v ${dir(T.pl)}">${usd(T.pl)}</div><div class="d ${dir(T.plPct)}">${pct(T.plPct)}</div></div>
+      <div class="stat"><div class="l"><span${ta('today')}>Resultado hoy</span></div><div class="v ${dir(T.today)}">${usd(T.today)}</div><div class="d ${dir(T.todayPct)}">${pct(T.todayPct)} · S&P ${pct(q('^GSPC').chgPct)}</div></div>
+      <div class="stat"><div class="l"><span${ta('beta')}>Beta vs S&P 500</span></div><div class="v">${nf(st.beta, 2)}</div><div class="d">${st.beta > 1 ? 'Más agresiva que el mercado' : 'Más defensiva que el mercado'}</div></div>
+      <div class="stat"><div class="l"><span${ta('vol')}>Volatilidad anual</span></div><div class="v">${pct(st.vol, 1, false)}</div><div class="d">S&P 500: ${pct(st.spxVol, 1, false)}</div></div>
+      <div class="stat"><div class="l"><span${ta('var')}>VaR 95% (1 día)</span></div><div class="v">${usd(st.var95Usd, 0)}</div><div class="d">${pct(st.var95, 2, false)} · CVaR ${pct(st.cvar95, 2, false)}</div></div>
+      <div class="stat"><div class="l"><span${ta('dd')}>Máx. caída 1 año</span></div><div class="v down">${pct(st.maxDD, 1)}</div><div class="d">Rend. 1A ${pct(st.r1y, 1)} vs S&P ${pct(st.spx1y, 1)}</div></div>
+    </div>
+    ${pfs.length > 1 ? compareHTML(pfs) : ''}
+    <div class="grid g-wide" style="margin-top:14px">
+      <div class="card"><div class="card-head"><div><h3${ta('port')}>${mine ? 'Cartera' : esc(P.name)} vs S&P 500</h3><p class="sub">Base 100 · simulado con las posiciones actuales</p></div>${segHTML('port', RANGES_DAILY)}</div>
+        <div class="chart-box" style="height:420px"><canvas id="cPort"></canvas></div></div>
+      <div class="card"><h3${ta('insights')}>Observaciones para decidir</h3><p class="sub">Generadas a partir de ${mine ? 'tus posiciones' : 'las posiciones de ' + esc(P.name)} y del mercado</p><ul class="insights">${insights().join('')}</ul></div>
+    </div>
+    <div class="grid g2" style="margin-top:14px">
+      <div class="card"><h3${ta('expo')}>Exposición por sector</h3><p class="sub">% del valor de mercado</p><div class="hbars">
+        ${P.sectors.map(([n, w]) => `<div class="hbar"><span>${esc(n)}</span><span class="track"><span class="fill" style="display:block;width:${(w / maxSec * 100).toFixed(1)}%"></span></span><span class="num">${pct(w, 1, false)}</span></div>`).join('')}
+      </div></div>
+      <div class="card"><h3${ta('factors')}>Sensibilidad a factores de mercado</h3><p class="sub">Correlación y beta diaria de la cartera (1 año)</p>
+        <div class="tbl-wrap"><table class="t"><thead><tr><th>Factor</th><th${ta('t_corr')}>Correlación</th><th${ta('beta')}>Beta</th><th${ta('t_impact')}>Impacto estimado</th></tr></thead><tbody>
+        ${Object.entries(P.factors).map(([n, f]) => { const isRate = n === 'Tasa 10Y';
+          const shock = SHOCKS[n] ?? 0.05, impact = f.beta * shock;
+          return `<tr><td>${n}</td><td>${nf(f.corr, 2)}</td><td>${nf(f.beta, 2)}</td><td class="${dir(impact)}">${isRate ? '+' + nf(shock * 100, 0) + ' pb' : pct(shock, 0)} ⇒ ${pct(impact, 2)}</td></tr>`; }).join('')}
+        </tbody></table></div>
+        <p class="note">Impacto = beta × shock. Ej.: si el petróleo sube 10%, la cartera históricamente se movió lo indicado ese día. Relación estadística, no causal.</p></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h3${ta('holdings')}>Posiciones</h3><p class="sub">Haz clic en un encabezado para ordenar · contribución al riesgo = % de la volatilidad total que aporta cada posición</p>
+      <div class="tbl-wrap"><table class="t" id="holdTbl"><thead><tr>
+        ${col('sym', 'Activo')}${col('sector', 'Sector')}${col('price', 'Precio')}${col('chgPct', 'Hoy')}${col('today', 'Res. hoy')}${col('mv', 'Valor')}${col('weight', 'Peso')}
+        ${col('pl', 'Res. total')}${col('plPct', 'Res. %')}${col('riskContrib', 'Contrib. riesgo')}${col('beta', 'Beta')}${col('corrOil', 'ρ Petróleo')}${col('corrRates', 'ρ Tasa 10Y')}${col('vsMa200', 'vs MM200')}${col('rsi', 'RSI')}
+      </tr></thead><tbody>
+      ${rows.map(r => `<tr><td><span class="sym">${esc(r.sym)}</span><span class="nm">${esc(r.name)}</span></td><td style="color:var(--ink-2)">${esc(r.sector)}</td>
+        <td>${nf(r.price, 2)}</td><td class="${dir(r.chgPct)}">${pct(r.chgPct)}</td><td class="${dir(r.today)}">${usd(r.today)}</td><td>${usd(r.mv)}</td>
+        <td><span class="wbar" style="width:${(r.weight / maxW * 50).toFixed(0)}px"></span>${pct(r.weight, 1, false)}</td>
+        <td class="${dir(r.pl)}">${usd(r.pl)}</td><td class="${dir(r.plPct)}">${pct(r.plPct, 1)}</td>
+        <td>${pct(r.riskContrib, 1, false)}${r.riskContrib > r.weight * 1.4 ? ' <span class="down" title="Aporta mucho más riesgo que su peso">●</span>' : ''}</td>
+        <td>${nf(r.beta, 2)}</td><td>${nf(r.corrOil, 2)}</td><td>${nf(r.corrRates, 2)}</td><td class="${dir(r.vsMa200)}">${pct(r.vsMa200, 1)}</td><td>${rsiCell(r.rsi)}</td></tr>`).join('')}
+      </tbody><tfoot><tr><td><b>Total</b></td><td></td><td></td><td class="${dir(T.todayPct)}">${pct(T.todayPct)}</td><td class="${dir(T.today)}"><b>${usd(T.today)}</b></td><td><b>${usd(T.mv)}</b></td><td>100%</td>
+        <td class="${dir(T.pl)}"><b>${usd(T.pl)}</b></td><td class="${dir(T.plPct)}">${pct(T.plPct, 1)}</td><td colspan="6"></td></tr></tfoot></table></div></div>
+  </section>`;
+}
+
+function compareHTML(pfs) {
+  // S&P 500 como referencia: mismos plazos, beta 1, su volatilidad y máxima caída de 1 año
+  const spx = D.series['^GSPC'].slice(-252), spxDD = Math.min(...spx.map((v, i) => v / Math.max(...spx.slice(0, i + 1)) - 1));
+  const H = [['r1m', '1M'], ['r3m', '3M'], ['r6m', '6M'], ['ytd', 'YTD'], ['r1y', '1A'], ['r2y', '2A']];
+  const ref = pfs[0].perf || {};
+  const cell = (v, b) => `<td class="${dir(v)}">${pct(v, 1)}${b != null && v != null ? ` <small style="color:var(--muted)">${v >= b ? '▲' : '▼'}</small>` : ''}</td>`;
+  const row = (name, perf, beta, vol, dd, pl, on) => `<tr${on ? ' style="background:var(--surface-2, rgba(127,127,127,.08))"' : ''}><td><b>${esc(name)}</b></td>
+    ${H.map(([k]) => cell(perf[k] && perf[k].port, ref[k] && ref[k].spx)).join('')}
+    <td>${nf(beta, 2)}</td><td>${pct(vol, 1, false)}</td><td class="down">${pct(dd, 1)}</td><td class="${dir(pl)}">${pct(pl, 1)}</td></tr>`;
+  return `<div class="card" style="margin-top:14px"><h3${ta('compare')}>Comparación de carteras vs S&P 500</h3>
+    <p class="sub">Rendimiento simulado con las posiciones actuales de cada cartera · ▲/▼ = mejor o peor que el S&P en ese plazo</p>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th>Cartera</th>${H.map(([, l]) => `<th${ta('t_horizon')}>${l}</th>`).join('')}
+      <th${ta('beta')}>Beta</th><th${ta('vol')}>Volatilidad</th><th${ta('dd')}>Máx. caída 1A</th><th${ta('t_plCost')}>Res. vs costo</th></tr></thead><tbody>
+    ${pfs.map((p, i) => row(p.name, p.perf || {}, p.stats.beta, p.stats.vol, p.stats.maxDD, p.totals.plPct, String(i) === S.pf)).join('')}
+    <tr><td style="color:var(--ink-2)"><b>S&P 500</b></td>${H.map(([k]) => `<td class="${dir(ref[k] && ref[k].spx)}">${pct(ref[k] && ref[k].spx, 1)}</td>`).join('')}
+      <td>1,00</td><td>${pct(pfs[0].stats.spxVol, 1, false)}</td><td class="down">${pct(spxDD, 1)}</td><td style="color:var(--muted)">—</td></tr>
+    </tbody></table></div>
+    <p class="note">Cada cartera se valoriza hacia atrás como si siempre hubiera tenido sus posiciones de hoy: mide la calidad de la selección actual, no las decisiones pasadas de compra y venta.</p></div>`;
+}
+
+/* ------------------------------------------------------------------ análisis por acción */
+const REC = { strong_buy: 'Compra fuerte', buy: 'Compra', hold: 'Mantener', underperform: 'Bajo el mercado', sell: 'Venta', none: '—' };
+const dayDiff = d => Math.round((new Date(d + 'T12:00:00') - new Date(D.generated.slice(0, 10) + 'T12:00:00')) / 864e5);
+const bigUsd = (v, cur = 'USD') => v == null ? '—' : (cur === 'USD' ? 'US$' : cur + ' ') + (v >= 1e12 ? nf(v / 1e12, 2) + ' B' : v >= 1e9 ? nf(v / 1e9, 1) + ' mil M' : nf(v / 1e6, 0) + ' M');
+const mult = v => v == null || v <= 0 ? '—' : nf(v, 1) + 'x';
+// lectura de valuación vs pares: P/U forward y crecimiento de ingresos contra la mediana
+function compRead(it) {
+  const m = it.peerMed || {}, pe = it.fpe, mp = m.fpe;
+  if (!pe || !mp || pe <= 0 || mp <= 0) return ['—', ''];
+  const rel = pe / mp - 1, grows = it.revG != null && m.revG != null ? it.revG - m.revG : null;
+  if (rel > 0.2) return grows != null && grows > 0.05 ? ['Más cara, pero crece más', 'flat'] : ['Más cara que sus pares', 'down'];
+  if (rel < -0.2) return grows != null && grows < -0.05 ? ['Más barata, crece menos', 'flat'] : ['Más barata que sus pares', 'up'];
+  return ['En línea con sus pares', 'flat'];
+}
+function analysisHTML() {
+  const R = D.research;
+  if (!R) return '';
+  const pfs = PFS(), P = PF(), mine = P === pfs[0];
+  const items = P.rows.map(r => [r, R.items[r.sym]]).filter(([, it]) => it);
+  if (!items.length) return '';
+  if (!items.some(([r]) => r.sym === S.comp)) S.comp = [...items].sort((a, b) => b[0].mv - a[0].mv)[0][0].sym;
+  const etfs = P.rows.filter(r => !R.items[r.sym]).map(r => r.sym);
+
+  // 1. próximos resultados
+  const up = items.filter(([, it]) => it.next && it.next.date).sort((a, b) => a[1].next.date.localeCompare(b[1].next.date));
+  const noDate = items.filter(([, it]) => !(it.next && it.next.date));
+  const nextList = up.map(([r, it]) => { const n = it.next, dd = dayDiff(n.date);
+    return `<tr><td><span class="sym">${esc(r.sym)}</span><span class="nm">${esc(r.name)}</span></td>
+      <td>${shortDate(n.date)}${n.estimate ? ' <small style="color:var(--muted)">(estimada)</small>' : ''}</td>
+      <td class="${dd <= 14 ? 'down' : ''}">${dd === 0 ? 'hoy' : dd > 0 ? `en ${dd} días` : `hace ${-dd} días`}</td>
+      <td>${n.eps != null ? (n.cur && n.cur !== 'USD' ? n.cur + ' ' : 'US$') + nf(n.eps, 2) : '—'}${n.epsLo != null ? ` <small style="color:var(--muted)">(${nf(n.epsLo, 2)}–${nf(n.epsHi, 2)})</small>` : ''}</td>
+      <td>${bigUsd(n.rev, n.cur)}</td><td>${it.avgMove != null ? '±' + pct(it.avgMove, 1, false) : '—'}</td><td>${pct(r.weight, 1, false)}</td></tr>`; }).join('');
+
+  // 2. historial de sorpresas y reacción
+  const qs = items.reduce((m, [, it]) => Math.max(m, (it.hist || []).length), 0);
+  const histRows = items.map(([r, it]) => { const h = it.hist || [], beats = h.filter(x => x.surp > 0).length;
+    return `<tr><td><span class="sym">${esc(r.sym)}</span></td>
+      ${Array.from({ length: qs }, (_, i) => { const x = h[i]; if (!x) return '<td>—</td>';
+        return `<td title="${esc(x.q)} · real ${nf(x.act, 2)} vs esperado ${nf(x.est, 2)}"><span class="${dir(x.surp)}">${pct(x.surp, 1)}</span><br><small style="color:var(--muted)">acción ${pct(x.react, 1)}</small></td>`; }).join('')}
+      <td>${h.length ? `${beats}/${h.length}` : '—'}</td><td>${it.avgMove != null ? '±' + pct(it.avgMove, 1, false) : '—'}</td></tr>`; }).join('');
+  const qLabels = (items.find(([, it]) => (it.hist || []).length === qs) || [null, { hist: [] }])[1].hist.map(x => x.q);
+
+  // 3. comparables
+  const vs = (v, m, f) => v == null ? '—' : `${f(v)}${m != null ? ` <small style="color:var(--muted)">/ ${f(m)}</small>` : ''}`;
+  const compRows = items.map(([r, it]) => { const m = it.peerMed || {}, [txt, cls] = compRead(it);
+    return `<tr><td><span class="sym">${esc(r.sym)}</span><span class="nm">${esc(it.industry || r.sector)}</span></td>
+      <td>${vs(it.fpe, m.fpe, mult)}</td><td>${vs(it.evEbitda, m.evEbitda, mult)}</td>
+      <td>${vs(it.revG, m.revG, v => pct(v, 0))}</td><td>${vs(it.om, m.om, v => pct(v, 0, false))}</td>
+      <td>${vs(it.roe, m.roe, v => pct(v, 0, false))}</td><td>${vs(it.r1y, m.r1y, v => pct(v, 0))}</td>
+      <td class="${cls}">${txt}</td></tr>`; }).join('');
+  const C = R.items[S.comp], cRow = (sym, name, x, hi) => `<tr${hi ? ' style="background:rgba(127,127,127,.10)"' : ''}><td><span class="sym">${esc(sym)}</span><span class="nm">${esc(name || '')}</span></td>
+    <td>${mult(x.fpe)}</td><td>${mult(x.pe)}</td><td>${mult(x.evEbitda)}</td><td class="${dir(x.revG)}">${pct(x.revG, 1)}</td>
+    <td>${pct(x.om, 1, false)}</td><td>${pct(x.roe, 1, false)}</td><td class="${dir(x.r1y)}">${pct(x.r1y, 1)}</td></tr>`;
+
+  // 4. valor justo
+  const fvRows = items.map(([r, it]) => { const m = it.model || {};
+    if (m.na) return `<tr><td><span class="sym">${esc(r.sym)}</span></td><td>${nf(it.price, 2)}</td><td colspan="3" style="color:var(--muted)">${esc(m.na)}</td>
+      <td>${it.target ? nf(it.target, 2) : '—'}</td><td class="${dir(it.targetUp)}">${pct(it.targetUp, 0)}</td><td>${REC[it.rec] || '—'}</td><td>—</td></tr>`;
+    const lab = m.up > 0.15 ? ['Bajo su valor estimado', 'up'] : m.up < -0.15 ? ['Sobre su valor estimado', 'down'] : ['Cerca de su valor', 'flat'];
+    return `<tr><td><span class="sym">${esc(r.sym)}</span></td><td>${nf(it.price, 2)}</td><td><b>${nf(m.fv, 2)}</b></td>
+      <td style="color:var(--ink-2)">${nf(m.fvLo, 0)} – ${nf(m.fvHi, 0)}</td><td class="${lab[1]}">${pct(m.up, 0)}<br><small>${lab[0]}</small></td>
+      <td>${it.target ? nf(it.target, 2) : '—'}${it.analysts ? ` <small style="color:var(--muted)">(${it.analysts})</small>` : ''}</td>
+      <td class="${dir(it.targetUp)}">${pct(it.targetUp, 0)}</td><td>${REC[it.rec] || '—'}</td>
+      <td style="color:var(--ink-2);white-space:nowrap">g ${pct(m.g1, 0, false)} · r ${pct(m.r, 1, false)} · ROE ${pct(m.roe, 0, false)}</td></tr>`; }).join('');
+  const A = R.assump;
+
+  return `<section id="analisis"><div class="sec-head"><h2>Análisis por acción</h2><p>Resultados trimestrales, comparación con pares y valor justo de ${mine ? 'tus acciones' : 'las acciones de ' + esc(P.name)} · datos de Yahoo, se renuevan cada 12 h</p></div>
+    ${pfs.length > 1 ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:-4px 0 14px"><span class="sub" style="margin:0">Cartera:</span>${segHTML('pf', pfs.map((x, i) => [String(i), x.name]))}</div>` : ''}
+    ${etfs.length ? `<p class="note" style="margin:-6px 0 14px">No incluye ETFs ni fondos (${etfs.map(esc).join(', ')}): no publican resultados propios.</p>` : ''}
+    <div class="grid g2">
+      <div class="card"><h3${ta('earnNext')}>Próximos resultados</h3><p class="sub">Fecha de publicación y lo que esperan los analistas · movimiento típico = reacción promedio de la acción en sus últimos reportes</p>
+        <div class="tbl-wrap"><table class="t"><thead><tr><th>Acción</th><th>Fecha</th><th>Cuándo</th><th${ta('t_epsEst')}>UPA esperada</th><th${ta('t_revEst')}>Ingresos esperados</th><th${ta('t_avgMove')}>Mov. típico</th><th${ta('t_weight')}>Peso</th></tr></thead>
+        <tbody>${nextList || '<tr><td colspan="7" style="color:var(--muted)">Sin fechas anunciadas</td></tr>'}</tbody></table></div>
+        ${noDate.length ? `<p class="note">Sin fecha anunciada aún: ${noDate.map(([r, it]) => `<b>${esc(r.sym)}</b>${it.next && it.next.last ? ` (último reporte ${shortDate(it.next.last)})` : ''}`).join(', ')}.</p>` : ''}</div>
+      <div class="card"><h3${ta('earnHist')}>Historial: sorpresa y reacción</h3><p class="sub">UPA real vs esperada en los últimos trimestres · debajo, cuánto se movió la acción en los 2 días del reporte</p>
+        <div class="tbl-wrap"><table class="t"><thead><tr><th>Acción</th>${qLabels.map(q => `<th${ta('t_surp')}>${esc(q)}</th>`).join('')}<th${ta('t_beats')}>Superó</th><th${ta('t_avgMove')}>Mov. típico</th></tr></thead><tbody>${histRows}</tbody></table></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h3${ta('comps')}>Comparables: valuación y calidad vs pares</h3>
+      <p class="sub">Valor de la acción / <span style="color:var(--muted)">mediana de sus pares</span> · pares sugeridos por Yahoo, filtrados al mismo sector cuando es posible</p>
+      <div class="tbl-wrap"><table class="t"><thead><tr><th>Acción</th><th${ta('t_fpe')}>P/U próx. 12m</th><th${ta('t_ev')}>EV/EBITDA</th><th${ta('t_revG')}>Crec. ingresos</th><th${ta('t_om')}>Margen operativo</th><th${ta('t_roe')}>ROE</th><th${ta('t_r1y')}>Rend. 1A</th><th${ta('t_read')}>Lectura</th></tr></thead><tbody>${compRows}</tbody></table></div>
+      ${C ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 8px"><b>Detalle de pares:</b><select class="sel" id="compSel">${items.map(([r]) => `<option value="${esc(r.sym)}" ${r.sym === S.comp ? 'selected' : ''}>${esc(r.sym)} · ${esc(r.name)}</option>`).join('')}</select></div>
+      <div class="tbl-wrap"><table class="t"><thead><tr><th>Empresa</th><th${ta('t_fpe')}>P/U próx. 12m</th><th${ta('t_pe')}>P/U 12m</th><th${ta('t_ev')}>EV/EBITDA</th><th${ta('t_revG')}>Crec. ingresos</th><th${ta('t_om')}>Margen op.</th><th${ta('t_roe')}>ROE</th><th${ta('t_r1y')}>Rend. 1A</th></tr></thead><tbody>
+        ${cRow(S.comp, C.name, C, true)}${(C.peers || []).map(p => cRow(p.sym, p.name, p, false)).join('')}
+        <tr><td style="color:var(--ink-2)"><b${ta('t_median')}>Mediana pares</b></td><td>${mult(C.peerMed.fpe)}</td><td>${mult(C.peerMed.pe)}</td><td>${mult(C.peerMed.evEbitda)}</td><td>${pct(C.peerMed.revG, 1)}</td><td>${pct(C.peerMed.om, 1, false)}</td><td>${pct(C.peerMed.roe, 1, false)}</td><td>${pct(C.peerMed.r1y, 1)}</td></tr>
+      </tbody></table></div>` : ''}</div>
+    <div class="card" style="margin-top:14px"><h3${ta('fairValue')}>Valor justo: modelo de utilidades descontadas</h3>
+      <p class="sub">Valor por acción según el modelo vs precio actual, junto al precio objetivo promedio de los analistas</p>
+      <div class="tbl-wrap"><table class="t"><thead><tr><th>Acción</th><th>Precio</th><th${ta('t_fv')}>Valor modelo</th><th${ta('t_fvRange')}>Rango (tasa ±1%)</th><th${ta('t_upModel')}>Potencial modelo</th><th${ta('t_target')}>Objetivo analistas</th><th${ta('t_upTarget')}>Potencial analistas</th><th${ta('t_rec')}>Recomendación</th><th${ta('t_assump')}>Supuestos</th></tr></thead><tbody>${fvRows}</tbody></table></div>
+      <p class="note">Cómo se calcula: parte de la utilidad por acción esperada para el próximo año fiscal; los años 2–5 crece a lo que esperan los analistas para ese año, recortado al ${pct(A.haircut, 0, false)} y con tope de 30% (g), los años 6–10 converge a ${pct(A.termG, 0, false)} y luego crece a ese ritmo para siempre. Cada año el accionista recibe la utilidad menos lo que la empresa reinvierte para crecer (g ÷ ROE). Se descuenta a r = Tesoro 10Y (${pct(A.rf, 2, false)}) + beta × ${pct(A.erp, 0, false)}. Es deliberadamente conservador: castiga a las empresas caras con poco crecimiento o baja rentabilidad. Úsalo para ver cuánto crecimiento descuenta el precio, no como precio objetivo.</p></div>
+  </section>`;
+}
+
+/* ------------------------------------------------------------------ simulador de cambios en la cartera */
+let simRes = null;
+function simInit(force) {
+  if (force || !S.sim || S.simBase !== S.pf) {
+    S.sim = Object.fromEntries(PF().rows.map(r => [r.sym, Math.round(r.mv * 100) / 100]));
+    S.simBase = S.pf;
+  }
+}
+function simHTML() {
+  if (!window.SimCore || !D.sim) return '';
+  simInit(false);
+  const P = PF(), mine = P === PFS()[0], cand = D.sim.cand, base = Object.fromEntries(P.rows.map(r => [r.sym, r.mv]));
+  const A = SimCore.compute(D, base), B = SimCore.compute(D, S.sim);
+  const X = B && SimCore.compute(D, { SPY: B.total });
+  simRes = { A, B, X };
+  if (!A || !B) return `<section id="simulador"><div class="sec-head"><h2>Simulador</h2><p>Agrega al menos una posición con monto mayor a cero.</p></div>${simControls(P, cand, base)}</section>`;
+  // filas de métricas: [etiqueta, clave tip, f(res), formato, mejor si sube (1) / baja (-1) / neutro (0)]
+  const M = [
+    ['Valor total', 's_total', r => r.total, v => usd(v, 0), 0],
+    ['Posiciones', 's_n', r => r.n, v => nf(v, 0), 0],
+    ['Retorno esperado anual', 'mu', r => r.er, v => pct(v, 1, false), 1],
+    ['Volatilidad anual', 'vol', r => r.vol, v => pct(v, 1, false), -1],
+    ['Retorno por unidad de riesgo', 's_ratio', r => r.sharpeLike, v => nf(v, 2), 1],
+    ['Beta vs S&P 500', 'beta', r => r.beta, v => nf(v, 2), 0],
+    ['VaR 95% (1 día)', 'var', r => r.var95Usd, v => usd(v, 0), -1],
+    ['Máx. caída 1 año', 'dd', r => r.maxDD, v => pct(v, 1), 1],
+    ['Rendimiento 1 año', 's_r1y', r => r.r1y, v => pct(v, 1), 1],
+    ['Rendimiento 2 años', 's_r2y', r => r.r2y, v => pct(v, 1), 1],
+    ['Rendimiento en el año', 's_ytd', r => r.ytd, v => pct(v, 1), 1],
+    ['Riesgo en las 3 mayores', 's_top3', r => r.top3, v => pct(v, 0, false), -1],
+  ];
+  const delta = (a, b, f, good) => { if (a == null || b == null) return '<td>—</td>'; const d = b - a;
+    if (Math.abs(d) < 1e-9) return '<td style="color:var(--muted)">=</td>';
+    const cls = good === 0 ? '' : (d > 0) === (good > 0) ? 'up' : 'down';
+    return `<td class="${cls}">${d > 0 ? '▲' : '▼'} ${String(f(Math.abs(d))).replace(/^\+/, '')}</td>`; };
+  const rows = M.map(([l, k, g, f, good]) => `<tr><td${ta(k)}>${l}</td><td>${f(g(A))}</td><td><b>${f(g(B))}</b></td>${delta(g(A), g(B), f, good)}<td style="color:var(--ink-2)">${X ? f(g(X)) : '—'}</td></tr>`).join('');
+  const secs = [...new Set([...A.sectors, ...B.sectors].map(s => s[0]))];
+  const sa = Object.fromEntries(A.sectors), sb = Object.fromEntries(B.sectors);
+  secs.sort((x, y) => (sb[y] || 0) - (sb[x] || 0));
+  const maxS = Math.max(...secs.map(s => Math.max(sa[s] || 0, sb[s] || 0)));
+  const bar = (v, c) => `<span class="track" style="height:6px"><span class="fill" style="display:block;width:${((v || 0) / maxS * 100).toFixed(1)}%;${c ? 'background:' + c : ''}"></span></span>`;
+  const diffTot = B.total - A.total;
+  return `<section id="simulador"><div class="sec-head"><h2>Simulador de cambios</h2><p>Prueba cambios en ${mine ? 'tu cartera' : 'la cartera de ' + esc(P.name)} y mira cómo cambian su riesgo, su retorno esperado y cómo le habría ido · no modifica tu Excel</p></div>
+    ${simControls(P, cand, base)}
+    <div class="grid g2" style="margin-top:14px">
+      <div class="card"><h3${ta('s_results')}>Resultado de la simulación</h3><p class="sub">${diffTot > 0.5 ? `Incluye un aporte nuevo de <b>${usd(diffTot, 0)}</b>` : diffTot < -0.5 ? `Incluye un retiro de <b>${usd(-diffTot, 0)}</b>` : 'Mismo monto total: solo cambia la distribución'} · ▲▼ verde = mejora, rojo = empeora</p>
+        <div class="tbl-wrap"><table class="t"><thead><tr><th>Métrica</th><th>Actual</th><th>Simulada</th><th${ta('s_delta')}>Cambio</th><th${ta('s_spy')}>Todo en SPY</th></tr></thead><tbody>${rows}</tbody></table></div>
+        ${B.erCoverage < 0.999 ? `<p class="note">${pct(1 - B.erCoverage, 0, false)} de la cartera simulada no tiene retorno esperado estimado y no se considera en ese cálculo.</p>` : ''}</div>
+      <div class="card"><div class="card-head"><div><h3${ta('s_chart')}>Cómo le habría ido</h3><p class="sub">Base 100 · posiciones de hoy aplicadas hacia atrás</p></div>${segHTML('simR', RANGES_DAILY)}</div>
+        <div class="chart-box" style="height:300px"><canvas id="cSim"></canvas></div>
+        <h3${ta('expo')} style="margin-top:14px">Exposición por sector</h3><p class="sub"><span style="color:var(--muted)">■</span> actual · <span style="color:var(--s1)">■</span> simulada</p>
+        <div class="hbars">${secs.map(s => `<div class="hbar" style="align-items:center"><span>${esc(s)}</span><span style="display:flex;flex-direction:column;gap:3px;flex:1">${bar(sa[s], 'var(--muted)')}${bar(sb[s])}</span><span class="num">${pct(sa[s] || 0, 0, false)} → <b>${pct(sb[s] || 0, 0, false)}</b></span></div>`).join('')}</div></div>
+    </div>
+    <p class="note" style="margin-top:10px">Simulación con precios históricos y supuestos de largo plazo: muestra el efecto de un cambio sobre el riesgo y la diversificación, no predice resultados ni es una recomendación de compra o venta. No considera comisiones ni impuestos.</p>
+  </section>`;
+}
+function simControls(P, cand, base) {
+  const r = simRes && simRes.B, total = Object.values(S.sim).reduce((a, b) => a + (b || 0), 0);
+  const syms = Object.keys(S.sim).sort((a, b) => (S.sim[b] || 0) - (S.sim[a] || 0));
+  const avail = Object.keys(cand).filter(s => !(s in S.sim)).sort((a, b) => (cand[a].sector + a).localeCompare(cand[b].sector + b));
+  const rows = syms.map(s => { const c = cand[s] || {}, b = base[s] || 0, v = S.sim[s] || 0, d = v - b;
+    return `<tr><td><span class="sym">${esc(s)}</span><span class="nm">${esc(c.name || s)}</span></td><td style="color:var(--ink-2)">${esc(c.sector || '—')}</td>
+      <td>${usd(b, 0)}</td><td><input class="num simAmt" type="number" min="0" step="10" data-sym="${esc(s)}" value="${Math.round(v * 100) / 100}" aria-label="Monto simulado ${esc(s)}"></td>
+      <td class="${dir(d)}">${Math.abs(d) < 0.5 ? '—' : (d > 0 ? '+' : '−') + usd(Math.abs(d), 0).replace('−', '')}</td>
+      <td>${total ? pct(v / total, 1, false) : '—'}</td><td>${r && r.rc[s] != null ? pct(r.rc[s], 1, false) : '—'}${r && r.rc[s] > (v / total) * 1.4 ? ' <span class="down" title="Aporta mucho más riesgo que su peso">●</span>' : ''}</td>
+      <td>${c.er != null ? pct(c.er, 1, false) : '—'}</td><td><button class="btn" data-simdel="${esc(s)}" title="Quitar ${esc(s)}" aria-label="Quitar ${esc(s)}">✕</button></td></tr>`; }).join('');
+  return `<div class="card"><div class="card-head" style="flex-wrap:wrap;gap:8px"><div><h3${ta('s_edit')}>Posiciones a simular</h3><p class="sub">Cambia el monto en US$ de cada posición (Enter o Tab para aplicar), quita o agrega activos</p></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn" data-simact="cap"${ta('s_cap')}>Tope 10% por posición</button>
+        <button class="btn" data-simact="small"${ta('s_small')}>Quitar las menores a 2%</button>
+        <button class="btn" data-simact="equal"${ta('s_equal')}>Pesos iguales</button>
+        <button class="btn" data-simact="reset">Restablecer</button></div></div>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th>Activo</th><th>Sector</th><th>Valor actual</th><th>Monto simulado</th><th>Cambio</th><th${ta('t_weight')}>Peso</th><th${ta('h_riskContrib')}>Contrib. riesgo</th><th${ta('s_er')}>Ret. esperado</th><th></th></tr></thead>
+      <tbody>${rows}</tbody><tfoot><tr><td><b>Total</b></td><td></td><td><b>${usd(Object.values(base).reduce((a, b) => a + b, 0), 0)}</b></td><td><b>${usd(total, 0)}</b></td><td colspan="5"></td></tr></tfoot></table></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px"><b${ta('s_add')}>Agregar activo:</b>
+      <select class="sel" id="simAddSel">${avail.map(s => `<option value="${esc(s)}">${esc(s)} · ${esc(cand[s].name)} (${esc(cand[s].sector)})</option>`).join('')}</select>
+      <input class="num" id="simAddAmt" type="number" min="0" step="10" value="100" aria-label="Monto a agregar"> <button class="btn" id="simAddBtn">Agregar</button></div></div>`;
+}
+
+function insights() {
+  const P = PF(), rows = P.rows, out = [];
+  const li = (html, c = 'var(--s1)') => `<li style="--c:${c}">${html}</li>`;
+  const sum = (f, k) => rows.filter(f).reduce((a, r) => a + (r[k] || 0), 0);
+  const isTech = r => ['Semiconductores', 'Software', 'Comunicaciones', 'Tecnología'].includes(r.sector) || ['AMZN', 'TSLA'].includes(r.sym);
+  const semiW = sum(r => r.sector === 'Semiconductores', 'weight'), semiR = sum(r => r.sector === 'Semiconductores', 'riskContrib');
+  const techW = sum(isTech, 'weight'), techR = sum(isTech, 'riskContrib');
+  const idx = rows.filter(r => /Índice/.test(r.sector)).map(r => r.sym);
+  out.push(li(`Tecnología + semis + comunicaciones pesan <b>${pct(techW, 0, false)}</b> de la cartera pero explican <b>${pct(techR, 0, false)}</b> del riesgo (semis solos: ${pct(semiW, 0, false)} del peso, ${pct(semiR, 0, false)} del riesgo).${idx.length ? ` ${idx.join(', ')} agrega exposición tecnológica indirecta.` : ''}`, 'var(--s2)'));
+  const top = [...rows].sort((a, b) => b.riskContrib - a.riskContrib).slice(0, 3);
+  out.push(li(`Mayores fuentes de riesgo: ${top.map(r => `<b>${r.sym}</b> (${pct(r.riskContrib, 0, false)} del riesgo vs ${pct(r.weight, 0, false)} del peso)`).join(', ')}.`, 'var(--s2)'));
+  const energyW = sum(r => r.sector === 'Energía', 'weight');
+  const c60 = D.rolling.XLE_XLK.c60.filter(v => v != null).slice(-1)[0];
+  if (energyW < 0.01) out.push(li(`Sin exposición directa a <b>energía</b>. La correlación energía-tecnología a 60 días es <b>${nf(c60, 2)}</b>${c60 < 0.3 ? ': históricamente un sector así diversifica una cartera cargada a tecnología.' : ': hoy la diversificación que aportaría es limitada.'}`, 'var(--s3)'));
+  const fo = P.factors['Tasa 10Y'];
+  const rateSens = rows.filter(r => ['Inmobiliario', 'Utilities'].includes(r.sector)).map(r => r.sym);
+  if (fo) out.push(li(`Sensibilidad a tasas: con +10 pb en el 10Y la cartera se movió en promedio <b>${pct(fo.beta * 0.1, 2)}</b>.${rateSens.length ? ` Inmobiliario y utilities (${rateSens.join(', ')}) son las posiciones más sensibles a tasas.` : ' No tiene inmobiliario ni utilities, los sectores más sensibles a tasas.'}`, 'var(--s1)'));
+  const below = rows.filter(r => r.vsMa200 != null && r.vsMa200 < 0);
+  if (below.length) out.push(li(`<b>${below.length}</b> posiciones bajo su media de 200 días (tendencia bajista): ${below.map(r => `${r.sym} ${pct(r.vsMa200, 0)}`).join(', ')}.`, 'var(--s8)'));
+  const os = rows.filter(r => r.rsi != null && r.rsi <= 30), ob = rows.filter(r => r.rsi != null && r.rsi >= 70);
+  if (os.length) out.push(li(`Sobreventa (RSI ≤ 30): <b>${os.map(r => r.sym).join(', ')}</b>. Caídas extendidas en el corto plazo; útil para evaluar puntos de entrada si la tesis sigue intacta.`, 'var(--s3)'));
+  if (ob.length) out.push(li(`Sobrecompra (RSI ≥ 70): <b>${ob.map(r => r.sym).join(', ')}</b>. Momentum fuerte; riesgo de toma de utilidades.`, 'var(--s4)'));
+  const losers = rows.filter(r => r.plPct < -0.15);
+  if (losers.length) out.push(li(`Pérdidas mayores al 15%: ${losers.map(r => `<b>${r.sym}</b> ${pct(r.plPct, 0)}`).join(', ')}. Revisa si la tesis original se mantiene.`, 'var(--s8)'));
+  const st = P.stats;
+  out.push(li(`Con un VaR 95% de <b>${usd(st.var95Usd, 0)}</b>, en 1 de cada 20 días la cartera podría perder más que eso. Hoy: ${usd(P.totals.today)}.`, 'var(--s7)'));
+  return out;
+}
+
+/* proyección de largo plazo: Monte Carlo con retornos esperados desde utilidades proyectadas */
+const SCEN_COLOR = { port: 0, SPY: 1, QQQ: 2 };
+// el retorno esperado es incierto: cada simulación sortea un error común de mercado y uno propio de la selección
+const ERR_MKT = 0.015, ERR_SEL = { port: 0.025, SPY: 0, QQQ: 0.015 };
+let projCache = { key: '', res: null };
+function rng(seed) {
+  return () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
+const usdK = v => v == null ? '—' : 'US$' + (Math.abs(v) >= 1e6 ? nf(v / 1e6, 2) + ' M' : Math.abs(v) >= 1e4 ? nf(v / 1e3, 0) + ' k' : nf(v, 0));
+
+function projScenarios() {
+  const p = D.portfolio.proj, out = { port: { name: 'Mi cartera', mu: p.mu, sigma: p.sigma, hist: p.hist, rho: 1 } };
+  for (const k of ['SPY', 'QQQ']) if (p.bench[k]) out[k] = { ...p.bench[k] };
+  return out;
+}
+// valor futuro determinista con aporte mensual al final de cada mes
+function fv(v0, ap, H, r) { const m = Math.pow(1 + r, 1 / 12) - 1, M = H * 12, g = Math.pow(1 + m, M); return v0 * g + (m ? ap * (g - 1) / m : ap * M); }
+function requiredReturn(v0, ap, H, meta) {
+  if (fv(v0, ap, H, -0.5) >= meta) return -0.5;
+  let lo = -0.5, hi = 1;
+  if (fv(v0, ap, H, hi) < meta) return null;
+  for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; fv(v0, ap, H, mid) < meta ? lo = mid : hi = mid; }
+  return (lo + hi) / 2;
+}
+function simulate(H, ap, meta) {
+  const sc = projScenarios(), v0 = D.portfolio.totals.mv, keys = Object.keys(sc);
+  const key = JSON.stringify([H, ap, meta, v0, sc]);
+  if (projCache.key === key) return projCache.res;
+  const N = 2000, M = H * 12, rand = rng(20261105);
+  const gauss = () => { let u = 0; while (!u) u = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rand()); };
+  // mediana de crecimiento = (1 + retorno esperado)^t; los benchmarks se simulan correlacionados con la cartera
+  const par = keys.map(k => ({ k, s: sc[k].sigma / Math.sqrt(12), rho: Math.min(1, sc[k].rho ?? 1) }));
+  const yr = Object.fromEntries(keys.map(k => [k, Array.from({ length: H + 1 }, () => new Float64Array(N))]));
+  const hit = Object.fromEntries(keys.map(k => [k, 0]));
+  let beat = 0;
+  for (let n = 0; n < N; n++) {
+    const v = par.map(() => v0), em = ERR_MKT * gauss();
+    const dd = par.map(q2 => Math.log(1 + Math.max(-0.5, sc[q2.k].mu + em + (ERR_SEL[q2.k] || 0) * gauss())) / 12);
+    par.forEach(q2 => { yr[q2.k][0][n] = v0; });
+    for (let m = 1; m <= M; m++) {
+      const z = gauss();
+      for (let j = 0; j < par.length; j++) {
+        const q2 = par[j], e = q2.rho >= 1 ? z : q2.rho * z + Math.sqrt(1 - q2.rho * q2.rho) * gauss();
+        v[j] = v[j] * Math.exp(dd[j] + q2.s * e) + ap;
+      }
+      if (m % 12 === 0) par.forEach((q2, j) => { yr[q2.k][m / 12][n] = v[j]; });
+    }
+    par.forEach((q2, j) => { if (v[j] >= meta) hit[q2.k]++; });
+    if (sc.SPY && v[0] > v[keys.indexOf('SPY')]) beat++;
+  }
+  const P = [0.1, 0.25, 0.5, 0.75, 0.9], res = { pct: {}, hit: {}, beat: sc.SPY ? beat / N : null };
+  for (const k of keys) {
+    res.pct[k] = yr[k].map(a => { const s = Float64Array.from(a).sort(); return P.map(p => s[Math.floor(p * (N - 1))]); });
+    res.hit[k] = hit[k] / N;
+  }
+  projCache = { key, res };
+  return res;
+}
+
+function projHTML() {
+  const p = D.portfolio.proj;
+  if (!p) return `<section id="proyeccion"><div class="sec-head"><h2>Proyección de la cartera</h2></div>
+    <div class="card"><p class="sub">No se pudo calcular: faltan datos fundamentales. Revisa la consola de Iniciar_Panel (.command en Mac / .bat en Windows).</p></div></section>`;
+  const H = +S.projH, ap = +S.projAporte, meta = +S.projMeta, v0 = D.portfolio.totals.mv;
+  const R = simulate(H, ap, meta), sc = projScenarios(), rf = (q('^IRX').price || 0) / 100;
+  const need = requiredReturn(v0, ap, H, meta), inv = v0 + ap * 12 * H;
+  const aportes = [0, 50, 100, 250, 500, 1000, 2000].map(v => `<option value="${v}" ${+S.projAporte === v ? 'selected' : ''}>US$${nf(v, 0)} / mes</option>`).join('');
+  const maxEr = Math.max(...p.holdings.map(h => h.er));
+  if (S.projX1 != null && S.projX1 > H) S.projX1 = null;
+  const x1 = S.projX1 ?? H;
+  if (S.projX0 >= x1) S.projX0 = 0;
+  return `<section id="proyeccion"><div class="sec-head"><h2>Proyección de la cartera</h2>
+    <p>Retorno esperado desde utilidades proyectadas por analistas · 2.000 simulaciones Monte Carlo</p></div>
+    <div class="grid g-wide">
+      <div class="card"><div class="card-head"><div><h3${ta('proj')}>Valor proyectado: ${esc(sc[S.projScen].name)}</h3>
+        <p class="sub">Banda clara = 80% de los escenarios (P10–P90) · banda oscura = 50% (P25–P75) · línea = mediana · gris = capital aportado</p></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${segHTML('projScen', Object.keys(sc).map(k => [k, k === 'port' ? 'Mi cartera' : k === 'SPY' ? 'S&P 500' : 'Nasdaq 100']))}
+          ${segHTML('projH', [['5', '5 años'], ['10', '10'], ['20', '20'], ['30', '30']])}
+          <select class="sel" id="projAporte" title="Aporte mensual">${aportes}</select>
+          <label class="meta" style="display:inline-flex;gap:6px;align-items:center">Meta US$
+            <input class="sel" id="projMeta" type="number" min="0" step="1000" value="${meta}" style="width:96px"></label>
+        </div></div>
+        <div class="zoom-wrap">
+          <div class="chart-box" style="height:480px"><canvas id="cProj"></canvas></div>
+          <div class="vzoom" title="Zoom vertical: baja la barra para acercar las líneas inferiores">
+            <span>Ver todo</span>
+            <input type="range" id="projY" min="3" max="100" step="1" value="${S.projY}" aria-label="Zoom vertical">
+            <span>Acercar</span></div>
+        </div>
+        <div class="hzoom">
+          <span>Años: desde</span><input type="range" id="projX0" min="0" max="${H - 1}" step="1" value="${S.projX0}" aria-label="Año inicial">
+          <span>hasta</span><input type="range" id="projX1" min="1" max="${H}" step="1" value="${x1}" aria-label="Año final">
+          <b id="projXlab"></b>
+          ${segHTML('projLog', [['0', 'Lineal'], ['1', 'Logarítmica']])}
+          <button class="btn" id="projReset">Restablecer zoom</button>
+          <span class="meta">Clic en la leyenda para ocultar o mostrar líneas</span>
+        </div>
+        <div class="tbl-wrap" style="margin-top:12px"><table class="t"><thead><tr><th>Escenario</th><th${ta('mu')}>Ret. esperado</th><th${ta('sigma')}>Volatilidad</th>
+          <th${ta('sharpe')}>Ret. / riesgo</th><th${ta('hist')}>Hist. 2 años</th>
+          <th${ta('P10')}>Pesimista (P10)</th><th${ta('P50')}>Mediana</th><th${ta('P90')}>Optimista (P90)</th><th${ta('hit')}>Prob. meta</th></tr></thead><tbody>
+          ${Object.entries(sc).map(([k, s]) => { const f = R.pct[k][H]; return `<tr${k === S.projScen ? ' style="font-weight:600"' : ''}>
+            <td><span class="badge" style="margin:0"><b style="background:${sc_(k)}"></b></span> ${esc(s.name)}</td>
+            <td>${pct(s.mu, 1, false)}</td><td>${pct(s.sigma, 1, false)}</td><td>${nf((s.mu - rf) / s.sigma, 2)}</td>
+            <td class="${dir(s.hist)}">${pct(s.hist, 1)}</td><td>${usdK(f[0])}</td><td>${usdK(f[2])}</td><td>${usdK(f[4])}</td>
+            <td>${pct(R.hit[k], 0, false)}</td></tr>`; }).join('')}
+        </tbody></table></div>
+        <p class="note">Capital aportado en ${H} años: <b>${usdK(inv)}</b> · Para llegar a <b>${usdK(meta)}</b> se necesita
+          <b>${need == null ? 'más de 100%' : pct(need, 1, false)}</b> anual compuesto. Valores nominales en US$ (no descuentan inflación ni impuestos).</p>
+      </div>
+      <div class="card"><h3${ta('vsSpx')}>¿Vale la pena vs el S&P 500?</h3><p class="sub">Lectura con tus datos y los supuestos de abajo</p>
+        <ul class="insights">${projInsights(R, sc, rf, H, ap, meta, need).join('')}</ul></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h3${ta('erTbl')}>Rentabilidad esperada por posición</h3>
+      <p class="sub">Retorno anual compuesto esperado a 10 años = dividendo + crecimiento de utilidades (consenso, convergiendo al largo plazo) + ajuste del múltiplo P/U</p>
+      <div class="tbl-wrap"><table class="t"><thead><tr><th>Activo</th><th${ta('t_weight')}>Peso</th><th${ta('dy')}>Dividendo</th><th data-tip="Crecimiento de utilidades esperado por analistas (año actual y próximo), ajustado al ${pct(p.assump.haircut, 0, false)}">Crec. utilidades (consenso)</th>
+        <th data-tip="Promedio a 10 años: converge ${pct(1 - p.assump.fade, 0, false)} por año hacia ${pct(p.assump.ltGrowth, 1, false)}">Crec. prom. 10 años</th><th${ta('pe')}>P/U fwd</th><th data-tip="El P/U recorre la mitad del camino (en log) hacia ${p.assump.peAnchor}x">Ajuste múltiplo</th>
+        <th${ta('erPos')}>Retorno esperado</th><th${ta('contrib')}>Aporte a la cartera</th></tr></thead><tbody>
+      ${p.holdings.map(h => `<tr><td title="${esc(h.method)}"><span class="sym">${esc(h.sym)}</span><span class="nm">${esc(h.sector)}</span></td>
+        <td>${pct(h.weight, 1, false)}</td><td>${pct(h.dy, 1, false)}</td><td class="${dir(h.g)}">${pct(h.g, 1)}</td><td>${pct(h.g10, 1)}</td>
+        <td>${h.pe == null ? '—' : nf(h.pe, 1) + 'x'}</td><td class="${dir(h.rerate)}">${pct(h.rerate, 1)}</td>
+        <td><span class="wbar" style="width:${Math.max(0, h.er / maxEr * 50).toFixed(0)}px"></span><b>${pct(h.er, 1, false)}</b></td>
+        <td>${pct(h.weight * h.er, 2, false)}</td></tr>`).join('')}
+      </tbody><tfoot><tr><td><b>Cartera</b></td><td>100%</td><td colspan="5"></td><td><b>${pct(p.mu, 1, false)}</b></td><td>${pct(p.mu, 2, false)}</td></tr></tfoot></table></div>
+      <p class="note">Fuente: consenso de analistas en Yahoo Finance (cache 12 h, archivo fundamentals.json). Supuestos editables al inicio de panel_mercado.py.
+        Para los ETF del S&P 500 y Nasdaq 100 el crecimiento es un supuesto manual. El oro se modela con ${pct(p.assump.gold, 0, false)} anual.
+        La volatilidad es la histórica de 2 años${p.volScale > 1 ? `, escalada ×${nf(p.volScale, 2)} al promedio histórico del S&P` : ''}. Es una estimación, no una promesa: el consenso suele ser optimista y la dispersión real de acciones individuales es mayor.</p>
+    </div></section>`;
+}
+const sc_ = k => sc(SCEN_COLOR[k] ?? 3);
+
+function projInsights(R, sc, rf, H, ap, meta, need) {
+  const p = D.portfolio.proj, out = [], st = D.portfolio.stats;
+  const li = (html, c = 'var(--s1)') => `<li style="--c:${c}">${html}</li>`;
+  const me = sc.port, spx = sc.SPY;
+  if (spx) {
+    const d = me.mu - spx.mu, shMe = (me.mu - rf) / me.sigma, shSpx = (spx.mu - rf) / spx.sigma;
+    out.push(li(`Retorno esperado: <b>${pct(me.mu, 1, false)}</b> anual vs <b>${pct(spx.mu, 1, false)}</b> del S&P 500 (${d >= 0 ? '+' : ''}${nf(d * 100, 1)} pp), con volatilidad ${pct(me.sigma, 0, false)} vs ${pct(spx.sigma, 0, false)}.`, sc_('port')));
+    out.push(li(`Retorno por unidad de riesgo: <b>${nf(shMe, 2)}</b> vs <b>${nf(shSpx, 2)}</b> del S&P. ${shMe > shSpx * 1.1 ? 'Sobre el papel tu selección compensa el riesgo extra.' : shMe < shSpx * 0.9 ? 'El riesgo extra no está bien pagado: el índice es más eficiente.' : 'Prácticamente empatados: el riesgo extra apenas se paga.'}`, 'var(--s7)'));
+    if (R.beat != null) out.push(li(`Probabilidad de terminar sobre el S&P 500 en ${H} años: <b>${pct(R.beat, 0, false)}</b>. Incluye el riesgo de que el consenso se equivoque (±${pct(ERR_SEL.port, 1, false)} anual en tu selección). Correlación entre ambos: ${nf(spx.rho, 2)}, así que la diferencia viene de pocas apuestas.`, sc_('SPY')));
+    out.push(li(`Historial (simulado con posiciones actuales): 2 años <b>${pct(me.hist, 1)}</b> anual vs S&P <b>${pct(spx.hist, 1)}</b>; último año ${pct(st.r1y, 1)} vs ${pct(st.spx1y, 1)}. ${me.hist < spx.hist ? 'Hasta ahora el mercado ha ganado.' : 'Hasta ahora la selección ha agregado valor.'}`, me.hist < spx.hist ? 'var(--s8)' : 'var(--s3)'));
+  }
+  const semi = p.holdings.filter(h => h.sector === 'Semiconductores').reduce((a, h) => a + h.weight * h.er, 0);
+  const top = [...p.holdings].sort((a, b) => b.weight * (b.er - (spx ? spx.mu : 0)) - a.weight * (a.er - (spx ? spx.mu : 0))).slice(0, 4);
+  out.push(li(`El retorno extra depende de <b>${top.map(h => h.sym).join(', ')}</b>; semiconductores aportan ${pct(semi / p.mu, 0, false)} del retorno esperado. Si el consenso de IA no se cumple, la ventaja desaparece.`, 'var(--s2)'));
+  const fin = R.pct[S.projScen][H][2], inv = D.portfolio.totals.mv + ap * 12 * H;
+  if (ap > 0) out.push(li(`En la mediana, <b>${pct(Math.min(1, inv / fin), 0, false)}</b> del valor final serán tus propios aportes. Con una cartera de ${usdK(D.portfolio.totals.mv)}, subir el aporte mensual pesa más que ganarle al índice por 1–2 pp.`, 'var(--s4)'));
+  if (need != null) {
+    const ok = Object.entries(sc).filter(([, s]) => s.mu >= need).map(([, s]) => s.name);
+    out.push(li(`Meta ${usdK(meta)}: requiere <b>${pct(need, 1, false)}</b> anual. ${ok.length ? 'Alcanzable en la mediana con: ' + ok.join(', ') + '.' : 'Ningún escenario lo logra en la mediana: sube el aporte o el plazo antes que el riesgo.'}`, 'var(--s5)'));
+  }
+  return out;
+}
+
+function footerHTML() {
+  return `<footer>Fuentes: Yahoo Finance (precios; índices en tiempo real, futuros con hasta 10–15 min de retraso), FRED / ICE Data Indices (spreads de crédito y tasas reales).
+    Señales y observaciones son cálculos cuantitativos con fines informativos y no constituyen recomendación de inversión.
+    ${D.host === 'nube' ? `Los datos se calculan en la nube: cada 15 min en horario de mercado y cada 2 horas fuera de él. <a href="#" id="lockBtn">Cerrar sesión en este dispositivo</a>` : `Actualización automática cada ${D.refreshSeconds} s mientras <b>Iniciar_Panel (.command en Mac / .bat en Windows)</b> esté en ejecución.`}</footer>`;
+}
+
+/* ------------------------------------------------------------------ chart drawing */
+function drawAll() {
+  const dates = D.dates.map(shortDate);
+  const sl = (arr, r) => arr.slice(rangeStart(r));
+  // rango 1D: series intradía alineadas a las horas del S&P; base 100 = cierre anterior
+  const IT = D.intraday['^GSPC'], iT = IT ? IT.t : [];
+  const isD = r => r === '1D' && !!IT;
+  const lab = r => isD(r) ? iT : sl(dates, r);
+  const intra = s => {
+    const it = D.intraday[s];
+    if (!it) return iT.map(() => null);
+    const m = Object.fromEntries(it.t.map((t, i) => [t, it.c[i]]));
+    return iT.map(t => m[t] ?? null);
+  };
+  const ser = (s, r) => isD(r) ? intra(s) : sl(D.series[s], r);
+  const reb = (s, r) => {
+    if (!isD(r)) return rebase(sl(D.series[s], r));
+    const p = (D.intraday[s] || {}).prev;
+    return intra(s).map(v => v == null || !p ? null : v / p * 100);
+  };
+
+  // índices
+  const idx = [['^GSPC', 'S&P 500'], ['^IXIC', 'Nasdaq'], ['^DJI', 'Dow Jones'], ['^RUT', 'Russell 2000'], ['RSP', 'S&P igual pond.']];
+  draw('cPerf', { type: 'line', data: { labels: lab(S.perf), datasets: idx.map(([s, n], i) => lineDS(n, reb(s, S.perf), sc(i))) },
+    options: baseOpts({ yFmt: v => nf(v, 0), tipFmt: v => nf(v - 100, 1) + '%', ref: 100 }) });
+
+  const it = D.intraday['^GSPC'];
+  if (it) draw('cIntra', { type: 'line', data: { labels: it.t, datasets: [lineDS('S&P 500', it.c, it.c[it.c.length - 1] >= it.prev ? css('--up-mark') : css('--down-mark'))] },
+    options: baseOpts({ yFmt: v => nf(v, 0), ref: it.prev, legend: false, xTicks: 6 }) });
+
+  // tasas
+  const rs = [['^IRX', '3M'], ['^FVX', '5Y'], ['^TNX', '10Y'], ['^TYX', '30Y']];
+  draw('cRates', { type: 'line', data: { labels: lab(S.rates), datasets: rs.map(([s, n], i) => lineDS(n, ser(s, S.rates), sc(i))) },
+    options: baseOpts({ yFmt: v => nf(v, 2) + '%' }) });
+
+  const n = D.dates.length, at = (s, b) => D.series[s][Math.max(0, n - 1 - b)];
+  const mats = [['3M', '^IRX'], ['5Y', '^FVX'], ['10Y', '^TNX'], ['30Y', '^TYX']];
+  draw('cCurve', { type: 'line', data: { labels: mats.map(m => m[0]), datasets: [
+      lineDS('Hoy', mats.map(m => at(m[1], 0)), sc(0), { pointRadius: 4 }),
+      lineDS('Hace 1 mes', mats.map(m => at(m[1], 21)), sc(1), { pointRadius: 4 }),
+      lineDS('Hace 1 año', mats.map(m => at(m[1], 252)), sc(2), { pointRadius: 4 })] },
+    options: baseOpts({ yFmt: v => nf(v, 2) + '%' }) });
+
+  const slope = D.series['^TNX'].map((v, i) => v == null || D.series['^IRX'][i] == null ? null : (v - D.series['^IRX'][i]) * 100);
+  draw('cSlope', { type: 'line', data: { labels: dates, datasets: [lineDS('10Y − 3M', slope, sc(0), { fill: { target: { value: 0 }, above: 'rgba(12,163,12,.10)', below: 'rgba(208,59,59,.14)' } })] },
+    options: baseOpts({ yFmt: v => nf(v, 0) + ' pb', ref: 0, legend: false }) });
+
+  if (D.fred.DFII10 && D.fred.T10YIE) {
+    const f1 = D.fred.DFII10, f2 = D.fred.T10YIE, map2 = Object.fromEntries(f2.dates.map((d, i) => [d, f2.values[i]]));
+    draw('cReal', { type: 'line', data: { labels: f1.dates.map(shortDate), datasets: [lineDS('Tasa real 10Y', f1.values, sc(0)), lineDS('Inflación implícita 10Y', f1.dates.map(d => map2[d] ?? null), sc(1))] },
+      options: baseOpts({ yFmt: v => nf(v, 2) + '%' }) });
+  } else {
+    // sin FRED: rendimiento nominal 5Y vs 10Y como sustituto
+    draw('cReal', { type: 'line', data: { labels: lab('1A'), datasets: [lineDS('Diferencial 30Y − 5Y', sl(D.series['^TYX'].map((v, i) => v == null || D.series['^FVX'][i] == null ? null : (v - D.series['^FVX'][i]) * 100), '1A'), sc(0))] },
+      options: baseOpts({ yFmt: v => nf(v, 0) + ' pb', ref: 0, legend: false }) });
+  }
+
+  // crédito
+  if (D.fredOk) {
+    const f = D.fred.BAMLH0A0HYM2, g = D.fred.BAMLC0A0CM, s0 = rangeStart(S.credit, f.dates);
+    const gm = g ? Object.fromEntries(g.dates.map((d, i) => [d, g.values[i]])) : {};
+    const ds = [lineDS('High Yield OAS', f.values.slice(s0), sc(0))];
+    if (g) ds.push(lineDS('Grado inversión OAS', f.dates.slice(s0).map(d => gm[d] ?? null), sc(1)));
+    draw('cCredit', { type: 'line', data: { labels: f.dates.slice(s0).map(shortDate), datasets: ds }, options: baseOpts({ yFmt: v => nf(v, 2) + '%' }) });
+  } else {
+    let hp = rebase(sl(D.hyProxy, S.credit));
+    if (isD(S.credit)) {
+      const h = intra('HYG'), f = intra('IEF'), H0 = D.intraday.HYG, F0 = D.intraday.IEF, b = H0 && F0 ? H0.prev / F0.prev : null;
+      hp = h.map((v, i) => v == null || f[i] == null || !b ? null : v / f[i] / b * 100);
+    }
+    draw('cCredit', { type: 'line', data: { labels: lab(S.credit), datasets: [lineDS('HYG / IEF', hp, sc(0))] },
+      options: baseOpts({ yFmt: v => nf(v, 1), ref: 100, legend: false }) });
+  }
+  draw('cVix', { type: 'line', data: { labels: lab(S.vix), datasets: [lineDS('VIX', ser('^VIX', S.vix), sc(0)), lineDS('VIX 3M', ser('^VIX3M', S.vix), sc(1))] },
+    options: baseOpts({ yFmt: v => nf(v, 0), ref: 20 }) });
+
+  // energía vs tech
+  const r = D.rolling[S.corrPair];
+  draw('cCorr', { type: 'line', data: { labels: lab(S.corr), datasets: [
+      lineDS('20 días', sl(r.c20, S.corr), sc(2), { borderWidth: 1.25 }), lineDS('60 días', sl(r.c60, S.corr), sc(0)), lineDS('120 días', sl(r.c120, S.corr), sc(1))] },
+    options: baseOpts({ yFmt: v => nf(v, 1), tipFmt: v => nf(v, 2), ref: 0, min: -1, max: 1 }) });
+  const en = [['XLE', 'Energía (XLE)'], ['XLK', 'Tecnología (XLK)'], ['SMH', 'Semis (SMH)'], ['CL=F', 'Petróleo WTI']];
+  draw('cEnergy', { type: 'line', data: { labels: lab(S.energy), datasets: en.map(([s, nn], i) => lineDS(nn, reb(s, S.energy), sc(i))) },
+    options: baseOpts({ yFmt: v => nf(v, 0), tipFmt: v => nf(v - 100, 1) + '%', ref: 100 }) });
+
+  // sectores
+  const secs = D.sectors.filter(s => D.quotes[s]).map(s => [q(s).name + ' (' + s + ')', q(s)[S.sector]]).sort((a, b) => b[1] - a[1]);
+  const so = baseOpts({ yFmt: v => v, legend: false });
+  so.indexAxis = 'y'; so.interaction = { mode: 'nearest', intersect: true, axis: 'y' };
+  so.scales = { x: { grid: { color: css('--grid') }, border: { display: false }, ticks: { color: css('--muted'), callback: v => nf(v * 100, 0) + '%', font: { size: 11 } } },
+                y: { grid: { display: false }, border: { color: css('--axis') }, ticks: { color: css('--ink-2'), font: { size: 12 } } } };
+  so.plugins.tooltip.callbacks = { label: c => ' ' + pct(c.parsed.x) };
+  so.plugins.refLine = {};
+  draw('cSector', { type: 'bar', data: { labels: secs.map(s => s[0]), datasets: [{ data: secs.map(s => s[1]),
+      backgroundColor: secs.map(s => s[1] >= 0 ? css('--up-mark') : css('--down-mark')), borderRadius: 4, borderSkipped: false, barThickness: 16 }] }, options: so });
+
+  // cartera
+  const PP = PF(), portDS = [lineDS(PP.name, rebase(sl(PP.value, S.port)), sc(0)), lineDS('S&P 500', rebase(sl(D.series['^GSPC'], S.port)), sc(1))];
+  if (PP !== PFS()[0]) portDS.push(lineDS('Mi cartera', rebase(sl(D.portfolio.value, S.port)), css('--muted'), { borderDash: [4, 4], borderWidth: 1.5 }));
+  draw('cPort', { type: 'line', data: { labels: lab(S.port), datasets: portDS },
+    options: baseOpts({ yFmt: v => nf(v, 0), tipFmt: v => nf(v - 100, 1) + '%', ref: 100 }) });
+
+  // simulador
+  if (simRes && simRes.A && simRes.B && $('#cSim')) {
+    const sv = r => rebase(sl(r.V, S.simR));
+    draw('cSim', { type: 'line', data: { labels: lab(S.simR), datasets: [lineDS('Simulada', sv(simRes.B), sc(0)), lineDS('Actual', sv(simRes.A), css('--muted'), { borderDash: [4, 4], borderWidth: 1.5 }), lineDS('S&P 500', rebase(sl(D.series['^GSPC'], S.simR)), sc(1))] },
+      options: baseOpts({ yFmt: v => nf(v, 0), tipFmt: v => nf(v - 100, 1) + '%', ref: 100 }) });
+  }
+
+  // proyección
+  if (D.portfolio.proj) {
+    const H = +S.projH, ap = +S.projAporte, R = simulate(H, ap, +S.projMeta), scn = projScenarios(), k = S.projScen;
+    const c = sc_(k), P = R.pct[k], col = i => P.map(r => r[i]);
+    const band = (label, i, fill, a) => lineDS(label, col(i), c, { borderWidth: 0, pointHoverRadius: 0, fill: fill ? '-1' : false, backgroundColor: rgba(c, a) });
+    const ds = [band('P90', 4, false), band('P10', 0, true, .12), band('P75', 3, false), band('P25', 1, true, .22),
+      lineDS('Mediana ' + scn[k].name, col(2), c, { borderWidth: 2.5 })];
+    Object.keys(scn).filter(x => x !== k).forEach(x => ds.push(lineDS('Mediana ' + scn[x].name, R.pct[x].map(r => r[2]), sc_(x), { borderDash: [5, 4], borderWidth: 1.5 })));
+    ds.push(lineDS('Capital aportado', P.map((_, y) => D.portfolio.totals.mv + ap * 12 * y), css('--muted'), { borderDash: [2, 3], borderWidth: 1.5 }));
+    const po = baseOpts({ yFmt: usdK, tipFmt: v => usd(v, 0), ref: +S.projMeta || null, xTicks: 11 });
+    po.plugins.legend.labels.filter = it => !/^P\d/.test(it.text);
+    if (S.projLog === '1') po.scales.y.type = 'logarithmic';
+    // ocultar/mostrar líneas desde la leyenda (se recuerda entre actualizaciones)
+    ds.forEach(d => { if (S.projHidden.has(d.label)) d.hidden = true; });
+    po.plugins.legend.onClick = (e, item, legend) => {
+      Chart.defaults.plugins.legend.onClick.call(legend, e, item, legend);
+      const lbl = legend.chart.data.datasets[item.datasetIndex].label;
+      legend.chart.isDatasetVisible(item.datasetIndex) ? S.projHidden.delete(lbl) : S.projHidden.add(lbl);
+      applyProjZoom();
+    };
+    draw('cProj', { type: 'line', data: { labels: P.map((_, y) => y ? 'Año ' + y : 'Hoy'), datasets: ds }, options: po });
+    applyProjZoom();
+  }
+}
+
+// zoom de la proyección: tramo de años (eje X) y acercamiento vertical sobre las líneas visibles
+function applyProjZoom() {
+  const c = charts.cProj;
+  if (!c) return;
+  const n = c.data.labels.length - 1, x1 = Math.min(S.projX1 ?? n, n), x0 = Math.min(S.projX0, x1 - 1);
+  let lo = Infinity, hi = -Infinity;
+  c.data.datasets.forEach((d, i) => {
+    if (!c.isDatasetVisible(i)) return;
+    for (let k = x0; k <= x1; k++) { const v = d.data[k]; if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
+  });
+  const y = c.options.scales.y, f = S.projY / 100;
+  if (isFinite(lo) && hi > lo) {
+    if (S.projLog === '1') { lo = Math.max(lo, 1); y.min = lo * 0.92; y.max = lo * Math.pow(hi / lo, f) * 1.08; }
+    else {
+      const top = lo + (hi - lo) * f, pad = (top - lo) * 0.05, u = Math.pow(10, Math.floor(Math.log10(top - lo))) / 2;
+      y.min = Math.max(0, Math.floor((lo - pad) / u) * u); y.max = Math.ceil((top + pad) / u) * u;
+    }
+  }
+  c.options.scales.x.min = x0; c.options.scales.x.max = x1;
+  c.update('none');
+  const lab = $('#projXlab');
+  if (lab) lab.textContent = `${x0 ? 'Año ' + x0 : 'Hoy'} – Año ${x1}`;
+}
+
+/* ------------------------------------------------------------------ events */
+document.addEventListener('input', e => {
+  const id = e.target.id;
+  if (id !== 'projY' && id !== 'projX0' && id !== 'projX1') return;
+  const v = +e.target.value;
+  if (id === 'projY') S.projY = v;
+  if (id === 'projX0') { S.projX0 = v; const b = $('#projX1'); if (b && +b.value <= v) { b.value = v + 1; S.projX1 = v + 1; } }
+  if (id === 'projX1') { S.projX1 = v; const a = $('#projX0'); if (a && +a.value >= v) { a.value = v - 1; S.projX0 = v - 1; } }
+  applyProjZoom();
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('.seg button');
+  if (b) { S[b.parentElement.dataset.key] = b.dataset.v; render(); return; }
+  const th = e.target.closest('#holdTbl th[data-sort]');
+  if (th) { const k = th.dataset.sort; S.sort = { k, d: S.sort.k === k ? -S.sort.d : -1 }; render(); return; }
+  const sd = e.target.closest('[data-simdel]');
+  if (sd) { delete S.sim[sd.dataset.simdel]; render(); return; }
+  const sa = e.target.closest('[data-simact]');
+  if (sa) { const a = sa.dataset.simact;
+    if (a === 'reset') simInit(true);
+    else S.sim = a === 'equal' ? SimCore.equalize(S.sim) : a === 'small' ? SimCore.dropSmall(S.sim, 0.02) : SimCore.capWeight(S.sim, 0.10);
+    render(); return; }
+  if (e.target.id === 'simAddBtn') { const s = $('#simAddSel').value, v = Math.max(0, +$('#simAddAmt').value || 0); if (s && v) { S.sim[s] = (S.sim[s] || 0) + v; render(); } return; }
+  if (e.target.id === 'lockBtn') { e.preventDefault(); PanelUnlock.forget(); return; }
+  if (e.target.id === 'projReset') { S.projY = 100; S.projX0 = 0; S.projX1 = null; S.projLog = '0'; S.projHidden.clear(); render(); }
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'corrSel') { S.corrPair = e.target.value; render(); }
+  if (e.target.id === 'compSel') { S.comp = e.target.value; render(); }
+  if (e.target.classList.contains('simAmt')) { S.sim[e.target.dataset.sym] = Math.max(0, +e.target.value || 0); render(); }
+  if (e.target.id === 'projAporte' || e.target.id === 'projMeta') {
+    S[e.target.id] = String(Math.max(0, +e.target.value || 0));
+    try { localStorage.setItem('panel-proj', JSON.stringify({ a: S.projAporte, m: S.projMeta })); } catch (_) {}
+    render();
+  }
+});
+
+function setTheme(t) {
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  try { t ? localStorage.setItem('panel-theme', t) : localStorage.removeItem('panel-theme'); } catch (_) {}
+  render(); tape();
+}
+$('#themeBtn').addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  setTheme(dark ? 'light' : 'dark');
+});
+try { const t = localStorage.getItem('panel-theme'); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
+
+/* cinta en vivo (TradingView, streaming) */
+function tape() {
+  const box = $('#tape');
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  box.innerHTML = '<div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>';
+  const s = document.createElement('script');
+  s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js'; s.async = true;
+  s.text = JSON.stringify({ symbols: [
+    { proName: 'FOREXCOM:SPXUSD', title: 'S&P 500' }, { proName: 'FOREXCOM:NSXUSD', title: 'Nasdaq 100' },
+    { proName: 'TVC:USOIL', title: 'WTI' }, { proName: 'TVC:GOLD', title: 'Oro' }, { proName: 'BITSTAMP:BTCUSD', title: 'BTC' },
+    { proName: 'AMEX:XLE', title: 'Energía' }, { proName: 'AMEX:XLK', title: 'Tecnología' },
+    { proName: 'NASDAQ:NVDA', title: 'NVDA' }, { proName: 'NASDAQ:MSFT', title: 'MSFT' }, { proName: 'NASDAQ:AMD', title: 'AMD' },
+    { proName: 'NASDAQ:AAPL', title: 'AAPL' }, { proName: 'NASDAQ:AMZN', title: 'AMZN' }, { proName: 'NASDAQ:GOOGL', title: 'GOOGL' }],
+    showSymbolLogo: false, isTransparent: true, displayMode: 'compact', colorTheme: dark ? 'dark' : 'light', locale: 'es' });
+  box.firstChild.appendChild(s);
+}
+
+/* recarga periódica de data.js */
+function reload() {
+  const s = document.createElement('script');
+  s.src = 'data.js?t=' + Date.now();
+  s.onload = async () => {
+    s.remove();
+    try { await PanelUnlock.ready(); } catch (err) { $('#app').innerHTML = `<div class="loading">${esc(err.message)}</div>`; schedule(); return; }
+    render(); schedule();
+  };
+  s.onerror = () => { s.remove(); schedule(); };
+  document.body.appendChild(s);
+}
+function schedule() {
+  const sec = (window.PANEL_DATA && window.PANEL_DATA.refreshSeconds) || 120;
+  nextAt = Date.now() + sec * 1000;
+  setTimeout(reload, sec * 1000);
+}
+setInterval(updMeta, 1000);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!document.documentElement.dataset.theme) { render(); tape(); } });
+tape();
+reload();
+</script>
+</body>
+</html>
