@@ -1,6 +1,6 @@
 // Service worker de la app móvil: guarda la interfaz para abrirla sin conexión
 // y la última copia de data.js para mostrar los últimos datos conocidos.
-const CACHE = 'panel-mercado-v5';
+const CACHE = 'panel-mercado-v6';
 const SHELL = ['./movil.html', './sim.js', './unlock.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'];
 

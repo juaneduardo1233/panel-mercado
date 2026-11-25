@@ -275,6 +275,8 @@ footer { color: var(--muted); font-size: 12px; margin-top: 18px; line-height: 1.
 .news { display: block; text-decoration: none; color: inherit; border-top: 1px solid var(--grid); padding: 11px 14px; }
 .news:first-child { border-top: 0; }
 .news .tt { font-size: 14.5px; font-weight: 580; line-height: 1.35; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.news .sm { font-size: 12.5px; color: var(--ink-2); line-height: 1.45; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.news.full .sm { -webkit-line-clamp: 6; }
 .news .mt { font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .tk { font-size: 11px; font-weight: 650; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--ink-2); }
 .tk.mkt { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
@@ -430,7 +432,8 @@ const TIPS = {
   'expo': 'Porcentaje del valor de mercado de la cartera en cada sector.',
   'factors': 'Cuánto se movió la cartera, en promedio, ante un movimiento típico de cada factor (1 año). Impacto = beta × shock. Relación estadística, no causal.',
   'holdings': 'Toca una posición para ver su detalle: resultado, riesgo, sensibilidades y gráfico.',
-  'news': 'Titulares de los últimos 7 días sobre las acciones de la cartera, de Yahoo Finance (en inglés: Reuters, Bloomberg, Barron\'s, Zacks, etc.). Por defecto se muestran los que nombran la empresa o su símbolo; el botón del final agrega las notas que solo la mencionan junto a otras. Toca un titular para abrir la nota completa.',
+  'news': 'Titulares de los últimos 7 días sobre las acciones de la cartera, de Yahoo Finance (en inglés: Reuters, Bloomberg, Barron\'s, Zacks, etc.). Por defecto se muestran los que nombran la empresa o su símbolo; el botón del final agrega las notas que solo la mencionan junto a otras. Toca un titular para abrir la nota completa. Se traducen automáticamente al español con un resumen breve (marca TRAD.; al dejar el mouse encima ves el titular original); EN = quedó en inglés.',
+  'newsTop': 'Las notas más relevantes de los últimos 3 días, traducidas al español con su resumen. Se eligen porque nombran a la empresa, vienen de una fuente reconocida (Reuters, Bloomberg, Barron\'s, CNBC…), son recientes y son de tus posiciones con más peso. Traducción automática: ante una duda, toca para abrir la nota original.',
   'newsMkt': 'Noticias generales en español de los últimos 2 días (Google Noticias): bolsa, Reserva Federal, inflación, petróleo y dólar. Sirven para entender por qué se mueve el mercado hoy.',
   'earnCal': 'Próximas fechas en que las empresas de la cartera publican sus resultados trimestrales: suelen ser los días de mayor movimiento del precio. "Estimada" = la empresa aún no confirma el día. UPA esp. = utilidad por acción que esperan los analistas.',
   'ptbl': 'Una fila por acción. Peso = % del valor de la cartera. Valor = cantidad × precio actual. Cantidad = número de acciones (incluye fracciones). P. prom. = precio promedio pagado por acción. Precio = cotización actual. Costo = cantidad × precio promedio. Resultado = valor − costo (en US$ y %). Hoy = variación del día. RSI 14 = fuerza relativa de 14 días: sobre 70 sobrecompra, bajo 30 sobreventa. vs MM200 = distancia a la media de 200 días (tendencia). Toca un encabezado para ordenar y una fila para ver el detalle; desliza la tabla hacia el lado o gira el teléfono para ver más columnas.',
@@ -623,9 +626,9 @@ function hoyHTML() {
 }
 function hoyNews() {
   if (!D.news) return '';
-  const top = newsFor(D.portfolio.rows.map(r => r.sym)).filter(n => n.main).slice(0, 3);
+  const top = topNews(D.portfolio, 3);
   if (!top.length) return '';
-  return `<div class="card"><div class="regime-top"><h3>Titulares de tus acciones ${ti('news')}</h3></div>
+  return `<div class="card"><div class="regime-top"><h3>Noticias destacadas ${ti('newsTop')}</h3></div>
     <div class="nlist" style="margin-bottom:0">${top.map(n => newsItem(n)).join('')}</div>
     <button class="row" data-goto="noticias" style="justify-content:center;color:var(--accent);font-weight:600;min-height:44px;margin:0 -14px -14px;width:calc(100% + 28px)">Ver todas las noticias ›</button></div>`;
 }
@@ -826,10 +829,21 @@ function newsFor(syms) {
   const N = D.news || { stocks: [], market: [] }, set = new Set(syms);
   return N.stocks.map(n => ({ ...n, syms: n.syms.filter(x => set.has(x)) })).filter(n => n.syms.length);
 }
-function newsItem(n, mkt) {
-  return `<a class="news" href="${esc(n.url)}" target="_blank" rel="noopener noreferrer"><div class="tt">${esc(n.title)}</div>
+const PREM = /reuters|bloomberg|wall street journal|wsj|barron|cnbc|financial times|marketwatch|investor's business|associated press|yahoo finance|investopedia|morningstar/i;
+function topNews(P, k = 5) {
+  // destacadas: nombran la acción, fuente reconocida, con resumen, recientes y de posiciones con más peso
+  const w = Object.fromEntries(P.rows.map(r => [r.sym, r.weight])), now = Date.now() / 1000, per = {};
+  return newsFor(P.rows.map(r => r.sym)).filter(n => now - n.t < 72 * 3600)
+    .map(n => ({ n, s: (n.main ? 3 : 0) + (PREM.test(n.src) ? 1.5 : 0) + (n.sum_es ? 1 : 0) + Math.min(3, Math.max(...n.syms.map(x => w[x] || 0)) * 25) - (now - n.t) / 3600 / 8 }))
+    .sort((a, b) => b.s - a.s).map(x => x.n)
+    .filter(n => { const s = n.syms[0]; per[s] = (per[s] || 0) + 1; return per[s] <= 2; }).slice(0, k);
+}
+function newsItem(n, mkt, full) {
+  const tt = n.title_es || n.title, sm = n.sum_es || (mkt ? '' : n.sum);
+  return `<a class="news${full ? ' full' : ''}" href="${esc(n.url)}" target="_blank" rel="noopener noreferrer"${n.title_es ? ` title="Original: ${esc(n.title)}"` : ''}><div class="tt">${esc(tt)}</div>
+    ${sm ? `<div class="sm">${esc(sm)}</div>` : ''}
     <div class="mt">${mkt ? `<span class="tk mkt">${esc(n.tag)}</span>` : n.syms.map(x => `<span class="tk">${esc(x)}</span>`).join('')}
-      ${mkt ? '' : '<span class="lang">EN</span>'}<span>${esc(n.src)}</span><span>· ${ago(n.t)}</span>${!mkt && !n.main ? '<span>· mención</span>' : ''}</div></a>`;
+      ${mkt ? '' : n.title_es ? '<span class="lang">TRAD.</span>' : '<span class="lang">EN</span>'}<span>${esc(n.src)}</span><span>· ${ago(n.t)}</span>${!mkt && !n.main ? '<span>· mención</span>' : ''}</div></a>`;
 }
 function earnCal(P) {
   const R = D.research && D.research.items, today = new Date().toISOString().slice(0, 10);
@@ -850,7 +864,7 @@ function noticiasHTML() {
   const all = S.nsym ? stock.filter(n => n.syms.includes(S.nsym)) : stock;
   const list = S.nall ? all : all.filter(n => n.main), extra = all.length - all.filter(n => n.main).length;
   const showS = S.nf !== 'mkt', showM = S.nf !== 'mine' && !S.nsym;
-  const head = `<h2 class="vt">Noticias</h2><p class="vsub">Tus acciones (en inglés) y el mercado (en español)</p>
+  const head = `<h2 class="vt">Noticias</h2><p class="vsub">Tus acciones (traducidas del inglés) y el mercado (en español)</p>
     ${pfs.length > 1 ? `<div style="margin:0 0 12px;overflow-x:auto">${segHTML('pf', pfs.map((x, i) => [String(i), x.name]))}</div>` : ''}
     ${segHTML('nf', [['all', 'Todas'], ['mine', S.pf === '0' ? 'Mis acciones' : 'Sus acciones'], ['mkt', 'Mercado']])}`;
   if (!D.news) return head + `<div class="card"><p class="sub" style="margin:0">Las noticias aparecerán en la próxima actualización.</p></div>`;
@@ -860,7 +874,10 @@ function noticiasHTML() {
     (extra ? `<button class="row" data-nall style="justify-content:center;color:var(--accent);font-weight:600;min-height:44px;margin:${list.length ? '14px' : '0'} -14px -14px;width:calc(100% + 28px)">${S.nall ? 'Ver solo las notas sobre la acción' : `Ver también ${extra} notas que solo la mencionan`}</button>` : ''));
   const mktCard = card('Mercado', 'newsMkt', 'En español · últimos 2 días',
     N.market.length ? `<div class="nlist">${N.market.slice(0, 20).map(n => newsItem(n, true)).join('')}</div>` : '<p class="sub">Sin titulares.</p>');
-  return head + (S.nf === 'mkt' ? mktCard : (showS ? stockCard : '') + (showM ? mktCard : '') + (S.nf === 'all' && !S.nsym ? earnCal(P) : ''));
+  const top = topNews(P);
+  const topCard = top.length && S.nf !== 'mkt' && !S.nsym ? card('Destacadas', 'newsTop', 'Traducidas al español · lo más relevante de los últimos 3 días',
+    `<div class="nlist">${top.map(n => newsItem(n, false, true)).join('')}</div>`) : '';
+  return head + topCard + (S.nf === 'mkt' ? mktCard : (showS ? stockCard : '') + (showM ? mktCard : '') + (S.nf === 'all' && !S.nsym ? earnCal(P) : ''));
 }
 /* ---------- TABLA DE POSICIONES (Cartera › Tabla) */
 const PT_COLS = [

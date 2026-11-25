@@ -884,6 +884,36 @@ def _yahoo_news(sym, crumb, name=""):
     return out
 
 
+def _yahoo_rss(sym):
+    """Resumen breve de cada nota (el buscador de Yahoo entrega solo el titular): {titular normalizado: resumen}."""
+    import xml.etree.ElementTree as ET
+    r = requests.get("https://feeds.finance.yahoo.com/rss/2.0/headline", headers=UA, timeout=10,
+                     params={"s": sym, "region": "US", "lang": "en-US"})
+    r.raise_for_status()
+    out = {}
+    for it in ET.fromstring(r.content).iter("item"):
+        d = re.sub(r"<[^>]+>", " ", it.findtext("description") or "")
+        d = re.sub(r"\s+", " ", d).strip()
+        if d:
+            out[_nkey(it.findtext("title"))] = d[:420] + ("…" if len(d) > 420 else "")
+    return out
+
+
+def _nkey(t):
+    return re.sub(r"[^a-z0-9]+", "", (t or "").lower())[:70]
+
+
+def _translate(text):
+    """Traducción al español con el traductor público de Google (sin clave)."""
+    r = requests.get("https://translate.googleapis.com/translate_a/single", headers=UA, timeout=10,
+                     params={"client": "gtx", "sl": "en", "tl": "es", "dt": "t", "q": text})
+    r.raise_for_status()
+    return "".join(seg[0] for seg in r.json()[0] if seg and seg[0]).strip()
+
+
+NEWS_TRANSLATE = 120  # máximo de notas traducidas por actualización (las demás quedan en inglés)
+
+
 def _google_news(q, tag):
     import xml.etree.ElementTree as ET
     from email.utils import parsedate_to_datetime
@@ -910,7 +940,7 @@ def build_news(syms, names=None):
     cache = _load_json(NEWS_CACHE, {})
     if cache.get("t") and time.time() - cache["t"] < NEWS_TTL and set(cache.get("syms", [])) == set(syms):
         return cache["data"]
-    stocks, market = {}, []
+    stocks, market, tr = {}, [], cache.get("tr", {})
     try:
         crumb = yahoo_crumb()
         with ThreadPoolExecutor(max_workers=6) as ex:
@@ -919,6 +949,24 @@ def build_news(syms, names=None):
                     cur = stocks.setdefault(n["id"], {**n, "syms": [], "main": False})
                     cur["syms"].append(s)
                     cur["main"] = cur["main"] or n["main"]
+            sums = {}
+            for d in ex.map(lambda s: _safe(_yahoo_rss, s) or {}, syms):
+                sums.update(d)
+            for n in stocks.values():
+                if sums.get(_nkey(n["title"])):
+                    n["sum"] = sums[_nkey(n["title"])]
+            # traducción (con caché: cada titular se traduce una sola vez)
+            tr = cache.get("tr", {})
+            todo = [n for n in sorted(stocks.values(), key=lambda n: (not n["main"], -n["t"]))][:NEWS_TRANSLATE]
+            texts = list(dict.fromkeys(x for n in todo for x in (n["title"], n.get("sum")) if x and x not in tr))
+            for txt, es in zip(texts, ex.map(lambda x: _safe(_translate, x) or "", texts)):
+                if es:
+                    tr[txt] = es
+            for n in stocks.values():
+                if tr.get(n["title"]):
+                    n["title_es"] = tr[n["title"]]
+                if n.get("sum") and tr.get(n["sum"]):
+                    n["sum_es"] = tr[n["sum"]]
             seen = set()
             for items in ex.map(lambda a: _safe(_google_news, *a), NEWS_ES):
                 for n in items or []:
@@ -935,7 +983,8 @@ def build_news(syms, names=None):
         return cache["data"]
     try:
         with open(NEWS_CACHE, "w", encoding="utf-8") as f:
-            json.dump({"t": time.time(), "syms": syms, "data": data}, f, ensure_ascii=False)
+            keep = {x for n in data["stocks"] for x in (n["title"], n.get("sum")) if x}
+            json.dump({"t": time.time(), "syms": syms, "data": data, "tr": {k: v for k, v in tr.items() if k in keep}}, f, ensure_ascii=False)
     except Exception:
         pass
     log(f"Noticias: {len(data['stocks'])} de acciones, {len(data['market'])} de mercado")

@@ -43,6 +43,7 @@ jobs:
             fundamentals.json
             research.json
             profiles.json
+            news.json
           key: datos-${{ github.run_id }}
           restore-keys: datos-
 
