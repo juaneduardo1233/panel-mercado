@@ -360,7 +360,9 @@ const TIPS = {
   'fairValue': 'Estimación del valor de la acción con un modelo de utilidades descontadas (variante de un DCF). Sensible a los supuestos: el rango muestra el valor si la tasa de descuento fuera 1 punto menor o mayor.',
   'compare': 'Rendimiento de cada cartera en distintos plazos frente al S&P 500, junto con su riesgo (beta, volatilidad y peor caída del último año).',
   'factors': 'Correlación y beta diaria de la cartera con cada factor (1 año). Impacto estimado = beta × shock típico. Relación estadística, no causal.',
-  'holdings': 'Detalle por posición. Haz clic en un encabezado para ordenar.',
+  'holdings': 'Detalle por posición. Cantidad = número de acciones (incluye fracciones). P. prom. = precio promedio pagado por acción. Valor = cantidad × precio actual; Peso = % del valor de la cartera. Haz clic en un encabezado para ordenar.',
+  'h_shares': 'Número de acciones que tienes (incluye fracciones).', 'h_avg': 'Precio promedio pagado por acción (costo promedio de tus compras).',
+  'h_price': 'Precio actual de la acción.',
   'h_chgPct': 'Variación del precio hoy.', 'h_today': 'Ganancia o pérdida de la posición hoy, en US$.',
   'h_mv': 'Valor de mercado de la posición.', 'h_weight': 'Porcentaje de la cartera que representa la posición.',
   'h_pl': 'Ganancia o pérdida acumulada en US$.', 'h_plPct': 'Ganancia o pérdida acumulada en %.',
@@ -545,11 +547,13 @@ function updMeta() {
   const age = Math.round(Date.now() / 1000 - D.epoch);
   const left = Math.max(0, Math.round((nextAt - Date.now()) / 1000));
   const el = $('#upd');
-  const stale = age > Math.max(600, D.refreshSeconds * 4);
+  // en la nube: cada 15 min con el mercado abierto y cada 2 h fuera de él, así que el umbral depende del horario
+  const cloud = D.host === 'nube', open = /^Abierto/.test(D.marketStatus || '');
+  const stale = age > (cloud ? (open ? 45 * 60 : 160 * 60) : Math.max(600, D.refreshSeconds * 4));
   el.className = 'meta' + (stale ? ' stale' : '');
   el.title = 'Datos generados: ' + D.generatedLocal;
   el.textContent = `Datos ${D.generatedLocal.slice(-8)} · hace ${age < 120 ? age + ' s' : Math.round(age / 60) + ' min'}` +
-    (stale ? ' · desactualizado: ¿corre Iniciar_Panel (.command en Mac / .bat en Windows)?' : ` · próx. ${left} s`);
+    (stale ? (cloud ? ' · desactualizado: la nube no se ha actualizado (revisa GitHub Actions)' : ' · desactualizado: ¿corre Iniciar_Panel (.command en Mac / .bat en Windows)?') : cloud ? '' : ` · próx. ${left} s`);
 }
 
 /* KPI tiles */
@@ -740,7 +744,7 @@ function portfolioHTML() {
   const maxW = Math.max(...P.rows.map(r => r.weight));
   const col = (key, label) => `<th data-sort="${key}"${ta('h_' + key)} class="${k === key ? 'sorted' : ''}">${label}${k === key ? (d > 0 ? ' ↑' : ' ↓') : ''}</th>`;
   const maxSec = P.sectors[0][1];
-  const subt = mine ? 'Posiciones del Excel valorizadas con precios en vivo'
+  const subt = mine ? 'Tus posiciones valorizadas con precios en vivo'
     : `${esc(P.source || 'carteras.json')} · ${P.rows.length} posiciones valorizadas con precios en vivo`;
   return `<section id="cartera"><div class="sec-head"><h2>${mine ? 'Mi cartera' : esc(P.name)}</h2><p>${subt}</p></div>
     ${pfs.length > 1 ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:-4px 0 14px"><span class="sub" style="margin:0">Cartera:</span>${segHTML('pf', pfs.map((x, i) => [String(i), x.name]))}</div>` : ''}
@@ -774,16 +778,16 @@ function portfolioHTML() {
     </div>
     <div class="card" style="margin-top:14px"><h3${ta('holdings')}>Posiciones</h3><p class="sub">Haz clic en un encabezado para ordenar · contribución al riesgo = % de la volatilidad total que aporta cada posición</p>
       <div class="tbl-wrap"><table class="t" id="holdTbl"><thead><tr>
-        ${col('sym', 'Activo')}${col('sector', 'Sector')}${col('price', 'Precio')}${col('chgPct', 'Hoy')}${col('today', 'Res. hoy')}${col('mv', 'Valor')}${col('weight', 'Peso')}
+        ${col('sym', 'Activo')}${col('sector', 'Sector')}${col('shares', 'Cantidad')}${col('avg', 'P. prom.')}${col('price', 'Precio')}${col('chgPct', 'Hoy')}${col('today', 'Res. hoy')}${col('mv', 'Valor')}${col('weight', 'Peso')}
         ${col('pl', 'Res. total')}${col('plPct', 'Res. %')}${col('riskContrib', 'Contrib. riesgo')}${col('beta', 'Beta')}${col('corrOil', 'ρ Petróleo')}${col('corrRates', 'ρ Tasa 10Y')}${col('vsMa200', 'vs MM200')}${col('rsi', 'RSI')}
       </tr></thead><tbody>
       ${rows.map(r => `<tr><td><span class="sym">${esc(r.sym)}</span><span class="nm">${esc(r.name)}</span></td><td style="color:var(--ink-2)">${esc(r.sector)}</td>
-        <td>${nf(r.price, 2)}</td><td class="${dir(r.chgPct)}">${pct(r.chgPct)}</td><td class="${dir(r.today)}">${usd(r.today)}</td><td>${usd(r.mv)}</td>
+        <td>${nf(r.shares, r.shares >= 100 ? 2 : r.shares >= 1 ? 4 : 6)}</td><td>${r.avg ? nf(r.avg, 2) : '—'}</td><td>${nf(r.price, 2)}</td><td class="${dir(r.chgPct)}">${pct(r.chgPct)}</td><td class="${dir(r.today)}">${usd(r.today)}</td><td>${usd(r.mv)}</td>
         <td><span class="wbar" style="width:${(r.weight / maxW * 50).toFixed(0)}px"></span>${pct(r.weight, 1, false)}</td>
         <td class="${dir(r.pl)}">${usd(r.pl)}</td><td class="${dir(r.plPct)}">${pct(r.plPct, 1)}</td>
         <td>${pct(r.riskContrib, 1, false)}${r.riskContrib > r.weight * 1.4 ? ' <span class="down" title="Aporta mucho más riesgo que su peso">●</span>' : ''}</td>
         <td>${nf(r.beta, 2)}</td><td>${nf(r.corrOil, 2)}</td><td>${nf(r.corrRates, 2)}</td><td class="${dir(r.vsMa200)}">${pct(r.vsMa200, 1)}</td><td>${rsiCell(r.rsi)}</td></tr>`).join('')}
-      </tbody><tfoot><tr><td><b>Total</b></td><td></td><td></td><td class="${dir(T.todayPct)}">${pct(T.todayPct)}</td><td class="${dir(T.today)}"><b>${usd(T.today)}</b></td><td><b>${usd(T.mv)}</b></td><td>100%</td>
+      </tbody><tfoot><tr><td><b>Total</b></td><td></td><td></td><td></td><td></td><td class="${dir(T.todayPct)}">${pct(T.todayPct)}</td><td class="${dir(T.today)}"><b>${usd(T.today)}</b></td><td><b>${usd(T.mv)}</b></td><td>100%</td>
         <td class="${dir(T.pl)}"><b>${usd(T.pl)}</b></td><td class="${dir(T.plPct)}">${pct(T.plPct, 1)}</td><td colspan="6"></td></tr></tfoot></table></div></div>
   </section>`;
 }
