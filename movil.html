@@ -87,7 +87,7 @@ header.top {
 /* barra de pestañas */
 nav.tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(6, 1fr);
   padding-bottom: env(safe-area-inset-bottom);
   background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid var(--border);
@@ -271,6 +271,16 @@ footer { color: var(--muted); font-size: 12px; margin-top: 18px; line-height: 1.
   #sheet { max-height: 94vh; }
   .chart-box, .chart-box.tall { height: 240px; }
 }
+/* noticias */
+.news { display: block; text-decoration: none; color: inherit; border-top: 1px solid var(--grid); padding: 11px 14px; }
+.news:first-child { border-top: 0; }
+.news .tt { font-size: 14.5px; font-weight: 580; line-height: 1.35; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.news .mt { font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.tk { font-size: 11px; font-weight: 650; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--ink-2); }
+.tk.mkt { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.lang { font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: 0 4px; }
+.nlist { margin: 0 -14px -14px; }
+.ndot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 4px; vertical-align: middle; }
 /* tabla de posiciones */
 .ptbl-wrap { overflow-x: auto; margin: 0 -14px -14px; -webkit-overflow-scrolling: touch; }
 table.ptbl { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -307,6 +317,7 @@ table.ptbl tfoot td { font-weight: 640; border-bottom: 0; border-top: 1px solid 
   <button data-tab="senales"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 12l6-6"/><circle cx="12" cy="12" r="1.5"/></svg>Señales</button>
   <button data-tab="mercado"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 7-8"/><path d="M3 21h18"/></svg>Mercado</button>
   <button data-tab="cartera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>Cartera</button>
+  <button data-tab="noticias"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13v14a1 1 0 0 0 1 1H5a1 1 0 0 1-1-1z"/><path d="M17 9h3v10a1 1 0 0 1-2 0"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>Noticias</button>
   <button data-tab="proy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20l6-5 4 2 8-9"/><path d="M15 8h6v6"/></svg>Proyección</button>
 </nav>
 
@@ -322,7 +333,7 @@ const sc = i => css(SERIES[i]);
 let D = null, charts = {}, nextAt = 0, sheetMode = null;
 const S = { tab: 'hoy', mk: 'indices', perf: '1M', rates: '6M', credit: '6M', vix: '6M', corrPair: 'XLE_XLK', corr: '1A', energy: '6M',
             sector: 'chgPct', matrix: '60d', corrSym: '^GSPC', monitor: 'indice', port: '1A', pf: '0', cv: 'res', sim: null, simBase: null, simR: '1A', sort: 'mv', sigF: 'all',
-            projH: '20', projScen: 'port', projAporte: '100', projMeta: '50000', projLog: '0', aRange: '6M', aSym: null };
+            projH: '20', projScen: 'port', projAporte: '100', projMeta: '50000', projLog: '0', aRange: '6M', aSym: null, nf: 'all', nsym: '', nall: false };
 try {
   const p = JSON.parse(localStorage.getItem('panel-proj') || '{}'); if (p.a) S.projAporte = p.a; if (p.m) S.projMeta = p.m;
   const t = localStorage.getItem('movil-tab'); if (t) S.tab = t;
@@ -419,6 +430,9 @@ const TIPS = {
   'expo': 'Porcentaje del valor de mercado de la cartera en cada sector.',
   'factors': 'Cuánto se movió la cartera, en promedio, ante un movimiento típico de cada factor (1 año). Impacto = beta × shock. Relación estadística, no causal.',
   'holdings': 'Toca una posición para ver su detalle: resultado, riesgo, sensibilidades y gráfico.',
+  'news': 'Titulares de los últimos 7 días sobre las acciones de la cartera, de Yahoo Finance (en inglés: Reuters, Bloomberg, Barron\'s, Zacks, etc.). Por defecto se muestran los que nombran la empresa o su símbolo; el botón del final agrega las notas que solo la mencionan junto a otras. Toca un titular para abrir la nota completa.',
+  'newsMkt': 'Noticias generales en español de los últimos 2 días (Google Noticias): bolsa, Reserva Federal, inflación, petróleo y dólar. Sirven para entender por qué se mueve el mercado hoy.',
+  'earnCal': 'Próximas fechas en que las empresas de la cartera publican sus resultados trimestrales: suelen ser los días de mayor movimiento del precio. "Estimada" = la empresa aún no confirma el día. UPA esp. = utilidad por acción que esperan los analistas.',
   'ptbl': 'Una fila por acción. Peso = % del valor de la cartera. Valor = cantidad × precio actual. Cantidad = número de acciones (incluye fracciones). P. prom. = precio promedio pagado por acción. Precio = cotización actual. Costo = cantidad × precio promedio. Resultado = valor − costo (en US$ y %). Hoy = variación del día. RSI 14 = fuerza relativa de 14 días: sobre 70 sobrecompra, bajo 30 sobreventa. vs MM200 = distancia a la media de 200 días (tendencia). Toca un encabezado para ordenar y una fila para ver el detalle; desliza la tabla hacia el lado o gira el teléfono para ver más columnas.',
   'riskContrib': 'Porcentaje de la volatilidad total de la cartera que aporta la posición. Si es mucho mayor que su peso, la posición pesa más en el riesgo que en el dinero.',
   'proj': 'Monte Carlo de 2.000 escenarios con aportes mensuales. Banda clara = 80% de los casos (P10–P90); oscura = 50% (P25–P75); línea = mediana.',
@@ -549,7 +563,7 @@ function spark(s, invert) {
 }
 
 /* ------------------------------------------------------------------ render */
-const VIEWS = { hoy: hoyHTML, senales: senalesHTML, mercado: mercadoHTML, cartera: carteraHTML, proy: proyHTML };
+const VIEWS = { hoy: hoyHTML, senales: senalesHTML, mercado: mercadoHTML, cartera: carteraHTML, noticias: noticiasHTML, proy: proyHTML };
 function render(keepScroll = true) {
   if (!window.PANEL_DATA) return;
   D = window.PANEL_DATA;
@@ -604,7 +618,16 @@ function hoyHTML() {
       <div class="gauge-bar"><i style="left:calc(${R.pos}% - 2px)"></i></div>
       <div class="gauge-scale"><span>Risk-off</span><span>Neutral</span><span>Risk-on</span></div>
     </div>
+    ${hoyNews()}
     ${kpisHTML()}`;
+}
+function hoyNews() {
+  if (!D.news) return '';
+  const top = newsFor(D.portfolio.rows.map(r => r.sym)).filter(n => n.main).slice(0, 3);
+  if (!top.length) return '';
+  return `<div class="card"><div class="regime-top"><h3>Titulares de tus acciones ${ti('news')}</h3></div>
+    <div class="nlist" style="margin-bottom:0">${top.map(n => newsItem(n)).join('')}</div>
+    <button class="row" data-goto="noticias" style="justify-content:center;color:var(--accent);font-weight:600;min-height:44px;margin:0 -14px -14px;width:calc(100% + 28px)">Ver todas las noticias ›</button></div>`;
 }
 function summary() {
   const out = [], li = (h, c = 'var(--s1)') => `<li style="--c:${c}">${h}</li>`;
@@ -756,7 +779,7 @@ function mkMonitor() {
 const SHOCKS = { 'Petróleo': 0.10, 'Tasa 10Y': 0.10, 'Energía': 0.05, 'Tecnología': 0.05, 'Semiconductores': 0.05, 'Dólar': 0.02, 'High Yield': 0.01 };
 const SORTS = [['mv', 'Valor'], ['chgPct', 'Hoy'], ['plPct', 'Resultado %'], ['riskContrib', 'Riesgo'], ['vsMa200', 'Tendencia'], ['rsi', 'RSI']];
 function carteraHTML() {
-  const pfs = PFS(), P = PF(), T = P.totals, st = P.stats, k = S.sort, mine = P === pfs[0];
+  const pfs = PFS(), P = PF(), T = P.totals, st = P.stats, k = S.sort, mine = PFS()[+S.pf] == null || S.pf === '0';
   const rows = [...P.rows].sort((a, b) => (b[k] ?? -1e9) - (a[k] ?? -1e9));
   const maxSec = P.sectors[0][1];
   const metric = r => k === 'mv' ? [usd(r.mv, 0), `<span class="${dir(r.chgPct)}">${pct(r.chgPct, 1)} hoy</span>`]
@@ -796,6 +819,49 @@ function carteraHTML() {
       return `<div class="row" style="cursor:default"><span class="l"><b>${n} ${isRate ? '+' + nf(shock * 100, 0) + ' pb' : '+' + nf(shock * 100, 0) + '%'}</b><small>Correlación ${nf(f.corr, 2)} · beta ${nf(f.beta, 2)}</small></span>
         <span class="r"><b class="${dir(impact)}">${pct(impact, 2)}</b><small style="color:var(--muted)">${usdS(impact * T.mv)}</small></span></div>`; }).join('')}</div>`)}`;
 }
+/* ---------- NOTICIAS */
+const ago = t => { const m = Math.max(1, Math.round((Date.now() / 1000 - t) / 60));
+  return m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d`; };
+function newsFor(syms) {
+  const N = D.news || { stocks: [], market: [] }, set = new Set(syms);
+  return N.stocks.map(n => ({ ...n, syms: n.syms.filter(x => set.has(x)) })).filter(n => n.syms.length);
+}
+function newsItem(n, mkt) {
+  return `<a class="news" href="${esc(n.url)}" target="_blank" rel="noopener noreferrer"><div class="tt">${esc(n.title)}</div>
+    <div class="mt">${mkt ? `<span class="tk mkt">${esc(n.tag)}</span>` : n.syms.map(x => `<span class="tk">${esc(x)}</span>`).join('')}
+      ${mkt ? '' : '<span class="lang">EN</span>'}<span>${esc(n.src)}</span><span>· ${ago(n.t)}</span>${!mkt && !n.main ? '<span>· mención</span>' : ''}</div></a>`;
+}
+function earnCal(P) {
+  const R = D.research && D.research.items, today = new Date().toISOString().slice(0, 10);
+  if (!R) return '';
+  const up = P.rows.map(r => [r, R[r.sym] && R[r.sym].next]).filter(([, n]) => n && n.date && n.date >= today)
+    .sort((a, b) => a[1].date.localeCompare(b[1].date)).slice(0, 6);
+  if (!up.length) return '';
+  const days = d => Math.round((new Date(d + 'T12:00:00') - new Date(today + 'T12:00:00')) / 864e5);
+  return card('Próximos resultados', 'earnCal', 'Cuándo publican sus resultados trimestrales', `<div class="list">${up.map(([r, n]) => { const k = days(n.date);
+    return `<button class="row" data-asset="${esc(r.sym)}"><span class="l"><b>${esc(r.sym)}</b><small>${esc(r.name)}${n.eps != null ? ` · UPA esp. ${nf(n.eps, 2)}` : ''}</small></span>
+      <span class="r"><b>${n.date.slice(8, 10)}-${n.date.slice(5, 7)}</b><small style="color:${k <= 7 ? 'var(--accent)' : 'var(--muted)'}">${k === 0 ? 'hoy' : k === 1 ? 'mañana' : `en ${k} días`}${n.estimate ? ' · estimada' : ''}</small></span></button>`; }).join('')}</div>`);
+}
+function noticiasHTML() {
+  const pfs = PFS(), P = PF(), N = D.news || { stocks: [], market: [] };
+  const syms = P.rows.map(r => r.sym), stock = newsFor(syms);
+  const withNews = syms.filter(x => stock.some(n => n.syms.includes(x)));
+  if (S.nsym && !withNews.includes(S.nsym)) S.nsym = '';
+  const all = S.nsym ? stock.filter(n => n.syms.includes(S.nsym)) : stock;
+  const list = S.nall ? all : all.filter(n => n.main), extra = all.length - all.filter(n => n.main).length;
+  const showS = S.nf !== 'mkt', showM = S.nf !== 'mine' && !S.nsym;
+  const head = `<h2 class="vt">Noticias</h2><p class="vsub">Tus acciones (en inglés) y el mercado (en español)</p>
+    ${pfs.length > 1 ? `<div style="margin:0 0 12px;overflow-x:auto">${segHTML('pf', pfs.map((x, i) => [String(i), x.name]))}</div>` : ''}
+    ${segHTML('nf', [['all', 'Todas'], ['mine', S.pf === '0' ? 'Mis acciones' : 'Sus acciones'], ['mkt', 'Mercado']])}`;
+  if (!D.news) return head + `<div class="card"><p class="sub" style="margin:0">Las noticias aparecerán en la próxima actualización.</p></div>`;
+  const stockCard = card('Tus acciones', 'news', `${list.length} titulares · últimos 7 días${S.nall ? '' : ' · solo los que la nombran'}`,
+    (withNews.length > 1 ? segHTML('nsym', [['', 'Todas'], ...withNews.map(x => [x, x])]) : '') +
+    (list.length ? `<div class="nlist">${list.slice(0, 40).map(n => newsItem(n)).join('')}</div>` : '<p class="sub">Sin titulares recientes que nombren la acción.</p>') +
+    (extra ? `<button class="row" data-nall style="justify-content:center;color:var(--accent);font-weight:600;min-height:44px;margin:${list.length ? '14px' : '0'} -14px -14px;width:calc(100% + 28px)">${S.nall ? 'Ver solo las notas sobre la acción' : `Ver también ${extra} notas que solo la mencionan`}</button>` : ''));
+  const mktCard = card('Mercado', 'newsMkt', 'En español · últimos 2 días',
+    N.market.length ? `<div class="nlist">${N.market.slice(0, 20).map(n => newsItem(n, true)).join('')}</div>` : '<p class="sub">Sin titulares.</p>');
+  return head + (S.nf === 'mkt' ? mktCard : (showS ? stockCard : '') + (showM ? mktCard : '') + (S.nf === 'all' && !S.nsym ? earnCal(P) : ''));
+}
 /* ---------- TABLA DE POSICIONES (Cartera › Tabla) */
 const PT_COLS = [
   ['sym', 'Activo'], ['weight', 'Peso'], ['mv', 'Valor'], ['shares', 'Cantidad'], ['avg', 'P. prom.'], ['price', 'Precio'],
@@ -804,9 +870,10 @@ function posTable(P) {
   const T = P.totals, k = PT_COLS.some(c => c[0] === S.sort) ? S.sort : 'mv';
   const rows = [...P.rows].sort((a, b) => k === 'sym' ? a.sym.localeCompare(b.sym) : (b[k] ?? -1e9) - (a[k] ?? -1e9));
   const maxW = Math.max(...rows.map(r => r.weight));
+  const fresh = new Set(newsFor(rows.map(r => r.sym)).filter(n => Date.now() / 1000 - n.t < 86400 && n.main).flatMap(n => n.syms));
   const qty = v => v == null ? '—' : nf(v, v >= 100 ? 2 : v >= 1 ? 4 : 6);
   const rsi = v => v == null ? '—' : `<span class="${v >= 70 ? 'down' : v <= 30 ? 'up' : ''}">${nf(v, 0)}</span>`;
-  const body = rows.map(r => `<tr data-asset="${esc(r.sym)}"><td><b>${esc(r.sym)}</b><small>${esc(r.name)}</small></td>
+  const body = rows.map(r => `<tr data-asset="${esc(r.sym)}"><td><b>${esc(r.sym)}${fresh.has(r.sym) ? '<span class="ndot" title="Noticia en las últimas 24 h"></span>' : ''}</b><small>${esc(r.name)}</small></td>
     <td><span class="wb" style="width:${(r.weight / maxW * 28).toFixed(0)}px"></span>${pct(r.weight, 1, false)}</td>
     <td>${usd(r.mv)}</td><td>${qty(r.shares)}</td><td>${r.avg ? usd(r.avg) : '—'}</td><td>${usd(r.price)}</td>
     <td>${r.cost ? usd(r.cost) : '—'}</td><td class="${dir(r.pl)}">${usdS(r.pl)}</td><td class="${dir(r.plPct)}">${pct(r.plPct, 1)}</td>
@@ -1202,7 +1269,7 @@ function assetSheet(s) {
   const pos = x.hi52 > x.lo52 ? (x.price - x.lo52) / (x.hi52 - x.lo52) * 100 : 50;
   const vs = x.ma200 ? x.price / x.ma200 - 1 : null;
   const kv = (l, v, cls = '') => `<div><div class="l">${l}</div><div class="v ${cls}">${v}</div></div>`;
-  const hp = S.tab === 'cartera' ? PF() : D.portfolio, hMine = hp === PFS()[0];
+  const hp = S.tab === 'cartera' ? PF() : D.portfolio, hMine = S.tab !== 'cartera' || PFS()[+S.pf] == null || S.pf === '0';
   const h = hp.rows.find(r => r.sym === s);
   const e = hMine && D.portfolio.proj && D.portfolio.proj.holdings.find(r => r.sym === s);
   openSheet(`<div class="sh-head"><div><h3>${esc(x.name)}</h3><small>${esc(s.replace('^', ''))}${h ? ' · ' + esc(h.sector) : ''} · ${x.time} NY</small></div>
@@ -1222,7 +1289,9 @@ function assetSheet(s) {
         ${kv('Resultado', usdS(h.pl), dir(h.pl))}${kv('Resultado %', pct(h.plPct, 1), dir(h.plPct))}${kv('Hoy', usdS(h.today), dir(h.today))}
         ${kv('Peso', pct(h.weight, 1, false))}${kv('Riesgo ' + ti('riskContrib'), pct(h.riskContrib, 1, false), h.riskContrib > h.weight * 1.4 ? 'down' : '')}${kv('Beta', nf(h.beta, 2))}
         ${kv('Volatilidad', pct(h.vol, 0, false))}${kv('ρ Petróleo', nf(h.corrOil, 2))}${kv('ρ Tasa 10Y', nf(h.corrRates, 2))}</div>
-      ${e ? `<div class="callout">Retorno esperado a 10 años: <b>${pct(e.er, 1, false)}</b> anual = dividendo ${pct(e.dy, 1, false)} + crecimiento ${pct(e.g10, 1)} + ajuste de múltiplo ${pct(e.rerate, 1)}${e.pe ? ` (P/U ${nf(e.pe, 1)}x)` : ''}. <span style="color:var(--muted)">${esc(e.method)}</span></div>` : ''}` : ''}`);
+      ${e ? `<div class="callout">Retorno esperado a 10 años: <b>${pct(e.er, 1, false)}</b> anual = dividendo ${pct(e.dy, 1, false)} + crecimiento ${pct(e.g10, 1)} + ajuste de múltiplo ${pct(e.rerate, 1)}${e.pe ? ` (P/U ${nf(e.pe, 1)}x)` : ''}. <span style="color:var(--muted)">${esc(e.method)}</span></div>` : ''}` : ''}
+    ${(() => { const ns = D.news ? newsFor([s]).slice(0, 4) : []; return ns.length ? `<div class="sh-sec" style="display:flex;gap:6px;align-items:center">Noticias ${ti('news')}</div>
+      <div class="card" style="padding:0 14px 14px;margin-top:6px"><div class="nlist" style="margin-bottom:-14px">${ns.map(n => newsItem(n)).join('')}</div></div>` : ''; })()}`);
   drawAsset();
 }
 function drawAsset() {
@@ -1253,6 +1322,7 @@ document.addEventListener('click', e => {
     render(key !== 'mk');
     return;
   }
+  if (e.target.closest('[data-nall]')) { S.nall = !S.nall; render(); return; }
   const sk = e.target.closest('[data-sortk]');
   if (sk) { S.sort = sk.dataset.sortk; render(); return; }
   const cv = e.target.closest('[data-cv]');

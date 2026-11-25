@@ -850,7 +850,112 @@ def build(cfg):
         "sectors": SECTOR_ETFS,
         "research": research,
         "sim": sim,
+        "news": build_news(list(dict.fromkeys(h["sym"] for h in every)), names),
     }
+
+
+# ---------------------------------------------------------------- noticias
+NEWS_CACHE = os.path.join(BASE, "news.json")
+NEWS_TTL = 10 * 60            # en el Mac el motor corre cada pocos minutos: no repetir consultas
+NEWS_PER_SYM = 6
+NEWS_DAYS = 7
+# mercado general en español (Google Noticias); cada consulta aporta unos pocos titulares recientes
+NEWS_ES = [("Wall Street bolsa", "Bolsa"), ("Reserva Federal tasas", "Fed"), ("inflación Estados Unidos", "Economía"),
+           ("precio petróleo", "Petróleo"), ("dólar peso chileno", "Dólar")]
+
+
+def _yahoo_news(sym, crumb, name=""):
+    r = session.get("https://query2.finance.yahoo.com/v1/finance/search",
+                    params={"q": sym, "newsCount": 12, "quotesCount": 0, "crumb": crumb}, timeout=10)
+    r.raise_for_status()
+    cut = time.time() - NEWS_DAYS * 86400
+    out = []
+    for n in r.json().get("news", []):
+        rel = [t.upper() for t in n.get("relatedTickers") or []]
+        if sym not in rel or not n.get("link") or (n.get("providerPublishTime") or 0) < cut:
+            continue
+        # "principal" = el titular nombra la empresa o el símbolo (no es una nota general que solo la menciona)
+        title = n.get("title", "").strip()
+        main = bool(re.search(r"\b" + re.escape(sym.split("-")[0]) + r"\b", title)) or bool(name and name.lower() in title.lower())
+        out.append({"id": n.get("uuid") or n["link"], "t": n["providerPublishTime"], "title": title,
+                    "src": n.get("publisher") or "", "url": n["link"], "main": main})
+        if len(out) >= NEWS_PER_SYM:
+            break
+    return out
+
+
+def _google_news(q, tag):
+    import xml.etree.ElementTree as ET
+    from email.utils import parsedate_to_datetime
+    r = requests.get("https://news.google.com/rss/search", headers=UA, timeout=10,
+                     params={"q": q + " when:2d", "hl": "es-419", "gl": "CL", "ceid": "CL:es-419"})
+    r.raise_for_status()
+    out = []
+    for it in ET.fromstring(r.content).iter("item"):
+        src, title = it.findtext("source") or "", (it.findtext("title") or "").strip()
+        if src and title.endswith(" - " + src):
+            title = title[: -len(src) - 3]
+        try:
+            t = int(parsedate_to_datetime(it.findtext("pubDate")).timestamp())
+        except Exception:
+            continue
+        out.append({"id": it.findtext("link"), "t": t, "title": title, "src": src, "url": it.findtext("link"), "tag": tag})
+        if len(out) >= 6:
+            break
+    return out
+
+
+def build_news(syms, names=None):
+    """Titulares por acción (Yahoo, en inglés) + mercado general (Google Noticias, en español)."""
+    cache = _load_json(NEWS_CACHE, {})
+    if cache.get("t") and time.time() - cache["t"] < NEWS_TTL and set(cache.get("syms", [])) == set(syms):
+        return cache["data"]
+    stocks, market = {}, []
+    try:
+        crumb = yahoo_crumb()
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            for s, items in zip(syms, ex.map(lambda s: _safe(_yahoo_news, s, crumb, _short_name((names or {}).get(s, ""))), syms)):
+                for n in items or []:
+                    cur = stocks.setdefault(n["id"], {**n, "syms": [], "main": False})
+                    cur["syms"].append(s)
+                    cur["main"] = cur["main"] or n["main"]
+            seen = set()
+            for items in ex.map(lambda a: _safe(_google_news, *a), NEWS_ES):
+                for n in items or []:
+                    k = n["title"].lower()[:60]
+                    if k not in seen:
+                        seen.add(k)
+                        market.append(n)
+    except Exception as e:
+        log(f"Noticias no disponibles ({e}); se usa la última copia")
+        return cache.get("data", {"stocks": [], "market": []})
+    data = {"stocks": sorted(stocks.values(), key=lambda n: -n["t"])[:120],
+            "market": sorted(market, key=lambda n: -n["t"])[:30]}
+    if not data["stocks"] and not data["market"] and cache.get("data"):
+        return cache["data"]
+    try:
+        with open(NEWS_CACHE, "w", encoding="utf-8") as f:
+            json.dump({"t": time.time(), "syms": syms, "data": data}, f, ensure_ascii=False)
+    except Exception:
+        pass
+    log(f"Noticias: {len(data['stocks'])} de acciones, {len(data['market'])} de mercado")
+    return data
+
+
+def _short_name(n):
+    """Palabra distintiva del nombre de la empresa ("Alphabet Inc." -> "Alphabet") para reconocerla en un titular."""
+    skip = {"the", "inc", "corp", "corporation", "co", "company", "group", "holdings", "vanguard", "ishares", "spdr"}
+    for w in re.findall(r"[A-Za-z][A-Za-z&'.-]+", n or ""):
+        if w.lower().strip(".") not in skip and len(w) >= 3:
+            return w.strip(".")
+    return ""
+
+
+def _safe(fn, *a):
+    try:
+        return fn(*a)
+    except Exception:
+        return []
 
 
 def build_signals(df, q, fred, rets):

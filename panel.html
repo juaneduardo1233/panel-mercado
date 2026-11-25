@@ -77,6 +77,14 @@ section { margin-top: 34px; }
 .sec-head h2 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.01em; }
 .sec-head p { margin: 0; color: var(--muted); font-size: 13px; }
 .grid { display: grid; gap: 14px; }
+.nbox { max-height: 640px; overflow-y: auto; margin: 0 -18px -16px; border-top: 1px solid var(--grid); }
+.news { display: block; text-decoration: none; color: inherit; border-bottom: 1px solid var(--grid); padding: 10px 18px; }
+.news:hover { background: var(--surface-2); }
+.news .tt { font-size: 13.5px; font-weight: 580; line-height: 1.35; color: var(--ink); }
+.news .mt { font-size: 11.5px; color: var(--muted); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 3px 8px; align-items: center; }
+.tk { font-size: 10.5px; font-weight: 650; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--ink-2); }
+.tk.mkt { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.lang { font-size: 9.5px; font-weight: 700; letter-spacing: .04em; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: 0 4px; }
 .g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 .g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
 .g-wide { grid-template-columns: 2fr 1fr; }
@@ -198,7 +206,7 @@ footer { margin-top: 40px; color: var(--muted); font-size: 12px; border-top: 1px
     <nav class="jump">
       <a href="#senales">Señales</a><a href="#indices">Índices</a><a href="#tasas">Tasas</a>
       <a href="#credito">Crédito y volatilidad</a><a href="#energia">Energía vs tech</a>
-      <a href="#correlaciones">Correlaciones</a><a href="#monitor">Monitor</a><a href="#cartera">Mi cartera</a><a href="#analisis">Análisis</a><a href="#simulador">Simulador</a><a href="#proyeccion">Proyección</a>
+      <a href="#correlaciones">Correlaciones</a><a href="#monitor">Monitor</a><a href="#cartera">Mi cartera</a><a href="#analisis">Análisis</a><a href="#noticias">Noticias</a><a href="#simulador">Simulador</a><a href="#proyeccion">Proyección</a>
     </nav>
     <span class="spacer"></span>
     <span class="meta" id="upd">Cargando…</span>
@@ -222,7 +230,7 @@ let D = null, charts = {}, nextAt = 0;
 const S = { perf: '6M', rates: '1A', credit: '1A', vix: '6M', corrPair: 'XLE_XLK', corr: '1A', energy: '6M',
             sector: 'chgPct', matrix: '60d', monitor: 'indice', port: '1A', pf: '0', comp: null, sim: null, simBase: null, simR: '1A', sort: { k: 'mv', d: -1 },
             projH: '20', projScen: 'port', projAporte: '100', projMeta: '50000',
-            projY: 100, projX0: 0, projX1: null, projLog: '0', projHidden: new Set() };
+            projY: 100, projX0: 0, projX1: null, projLog: '0', projHidden: new Set(), nsym: '', nall: '0' };
 try { const p = JSON.parse(localStorage.getItem('panel-proj') || '{}'); if (p.a) S.projAporte = p.a; if (p.m) S.projMeta = p.m; } catch (_) {}
 
 const nf = (v, d = 2) => v == null ? '—' : v.toLocaleString('es-CL', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -235,6 +243,45 @@ const q = s => D.quotes[s] || {};
 const PFS = () => [{ ...D.portfolio, name: 'Mi cartera', source: 'Excel', note: '' }, ...(D.others || [])];
 const PF = () => PFS()[+S.pf] || PFS()[0];
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ------------------------------------------------------------------ noticias */
+const ago = t => { const m = Math.max(1, Math.round((Date.now() / 1000 - t) / 60));
+  return m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d`; };
+function newsFor(syms) {
+  const set = new Set(syms);
+  return ((D.news && D.news.stocks) || []).map(n => ({ ...n, syms: n.syms.filter(x => set.has(x)) })).filter(n => n.syms.length);
+}
+function newsItem(n, mkt) {
+  return `<a class="news" href="${esc(n.url)}" target="_blank" rel="noopener noreferrer"><div class="tt">${esc(n.title)}</div>
+    <div class="mt">${mkt ? `<span class="tk mkt">${esc(n.tag)}</span>` : n.syms.map(x => `<span class="tk">${esc(x)}</span>`).join('')}
+      ${mkt ? '' : '<span class="lang">EN</span>'}<span>${esc(n.src)}</span><span>· ${ago(n.t)}</span>${!mkt && !n.main ? '<span>· mención</span>' : ''}</div></a>`;
+}
+function newsHTML() {
+  if (!D.news) return '';
+  const P = PF(), mine = PFS()[+S.pf] == null || S.pf === '0', syms = P.rows.map(r => r.sym), stock = newsFor(syms);
+  const withNews = syms.filter(x => stock.some(n => n.syms.includes(x)));
+  if (S.nsym && !withNews.includes(S.nsym)) S.nsym = '';
+  const all = S.nsym ? stock.filter(n => n.syms.includes(S.nsym)) : stock, list = S.nall === '1' ? all : all.filter(n => n.main);
+  const R = D.research && D.research.items, today = new Date().toISOString().slice(0, 10);
+  const days = d => Math.round((new Date(d + 'T12:00:00') - new Date(today + 'T12:00:00')) / 864e5);
+  const up = R ? P.rows.map(r => [r, R[r.sym] && R[r.sym].next]).filter(([, n]) => n && n.date && n.date >= today)
+    .sort((a, b) => a[1].date.localeCompare(b[1].date)).slice(0, 8) : [];
+  return `<section id="noticias"><div class="sec-head"><h2>Noticias</h2><p>${mine ? 'Tus acciones' : 'Acciones de ' + esc(P.name)} (en inglés, Yahoo Finance) y el mercado (en español, Google Noticias)</p></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-head"><div><h3${ta('news')}>${mine ? 'Tus acciones' : 'Sus acciones'}</h3><p class="sub">${list.length} titulares · últimos 7 días</p></div>
+        <div style="display:flex;gap:8px;align-items:center">${segHTML('nall', [['0', 'Sobre la acción'], ['1', 'Incluir menciones']])}
+          <select class="sel" id="nsymSel" style="width:auto"><option value="">Todas</option>${withNews.map(x => `<option${x === S.nsym ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></div></div>
+        <div class="nbox">${list.length ? list.slice(0, 60).map(n => newsItem(n)).join('') : '<p class="sub">Sin titulares recientes.</p>'}</div></div>
+      <div class="grid" style="align-content:start">
+        ${up.length ? `<div class="card"><h3${ta('earnCal')}>Próximos resultados</h3><p class="sub">Cuándo publican sus resultados trimestrales</p>
+          <table class="t"><thead><tr><th>Acción</th><th>Fecha</th><th>Faltan</th><th>UPA esp.</th></tr></thead><tbody>
+          ${up.map(([r, n]) => { const k = days(n.date); return `<tr><td><span class="sym">${esc(r.sym)}</span><span class="nm">${esc(r.name)}</span></td>
+            <td>${n.date.slice(8, 10)}-${n.date.slice(5, 7)}-${n.date.slice(0, 4)}${n.estimate ? ' <small style="color:var(--muted)">estimada</small>' : ''}</td>
+            <td style="${k <= 7 ? 'color:var(--accent);font-weight:600' : ''}">${k === 0 ? 'hoy' : k === 1 ? 'mañana' : k + ' días'}</td><td>${n.eps != null ? nf(n.eps, 2) : '—'}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+        <div class="card"><h3${ta('newsMkt')}>Mercado</h3><p class="sub">En español · últimos 2 días</p>
+          <div class="nbox" style="max-height:420px">${(D.news.market || []).slice(0, 20).map(n => newsItem(n, true)).join('') || '<p class="sub">Sin titulares.</p>'}</div></div>
+      </div></div></section>`;
+}
 
 /* ------------------------------------------------------------------ definiciones (globos al pasar el mouse) */
 const TIPS = {
@@ -360,6 +407,9 @@ const TIPS = {
   'fairValue': 'Estimación del valor de la acción con un modelo de utilidades descontadas (variante de un DCF). Sensible a los supuestos: el rango muestra el valor si la tasa de descuento fuera 1 punto menor o mayor.',
   'compare': 'Rendimiento de cada cartera en distintos plazos frente al S&P 500, junto con su riesgo (beta, volatilidad y peor caída del último año).',
   'factors': 'Correlación y beta diaria de la cartera con cada factor (1 año). Impacto estimado = beta × shock típico. Relación estadística, no causal.',
+  'news': 'Titulares de los últimos 7 días sobre las acciones de la cartera, de Yahoo Finance (en inglés: Reuters, Bloomberg, Barron\'s, Zacks, etc.). Por defecto se muestran los que nombran la empresa o su símbolo; "Incluir menciones" agrega las notas que solo la mencionan junto a otras. Clic en un titular para abrir la nota.',
+  'newsMkt': 'Noticias generales en español de los últimos 2 días (Google Noticias): bolsa, Reserva Federal, inflación, petróleo y dólar.',
+  'earnCal': 'Próximas fechas en que las empresas de la cartera publican sus resultados trimestrales: suelen ser los días de mayor movimiento. "Estimada" = la empresa aún no confirma el día. UPA esp. = utilidad por acción que esperan los analistas.',
   'holdings': 'Detalle por posición. Cantidad = número de acciones (incluye fracciones). P. prom. = precio promedio pagado por acción. Valor = cantidad × precio actual; Peso = % del valor de la cartera. Haz clic en un encabezado para ordenar.',
   'h_shares': 'Número de acciones que tienes (incluye fracciones).', 'h_avg': 'Precio promedio pagado por acción (costo promedio de tus compras).',
   'h_price': 'Precio actual de la acción.',
@@ -530,7 +580,7 @@ function render() {
   const app = $('#app');
   const y = window.scrollY;
   app.innerHTML = [kpisHTML(), signalsHTML(), indicesHTML(), ratesHTML(), creditHTML(), energyHTML(),
-                   corrHTML(), sectorsHTML(), monitorHTML(), portfolioHTML(), analysisHTML(), simHTML(), projHTML(), footerHTML()].join('');
+                   corrHTML(), sectorsHTML(), monitorHTML(), portfolioHTML(), analysisHTML(), newsHTML(), simHTML(), projHTML(), footerHTML()].join('');
   window.scrollTo(0, y);
   drawAll();
   header();
@@ -738,7 +788,7 @@ const rsiCell = v => v == null ? '—' : v >= 70 ? `<b class="down">${nf(v, 0)}<
 // shocks típicos por factor (tasa 10Y en puntos porcentuales: 0.10 = 10 pb)
 const SHOCKS = { 'Petróleo': 0.10, 'Tasa 10Y': 0.10, 'Energía': 0.05, 'Tecnología': 0.05, 'Semiconductores': 0.05, 'Dólar': 0.02, 'High Yield': 0.01 };
 function portfolioHTML() {
-  const pfs = PFS(), P = PF(), T = P.totals, st = P.stats, mine = P === pfs[0];
+  const pfs = PFS(), P = PF(), T = P.totals, st = P.stats, mine = PFS()[+S.pf] == null || S.pf === '0';
   const k = S.sort.k, d = S.sort.d;
   const rows = [...P.rows].sort((a, b) => typeof a[k] === 'string' ? -d * a[k].localeCompare(b[k]) : d * ((a[k] ?? -1e9) - (b[k] ?? -1e9)));
   const maxW = Math.max(...P.rows.map(r => r.weight));
@@ -829,7 +879,7 @@ function compRead(it) {
 function analysisHTML() {
   const R = D.research;
   if (!R) return '';
-  const pfs = PFS(), P = PF(), mine = P === pfs[0];
+  const pfs = PFS(), P = PF(), mine = PFS()[+S.pf] == null || S.pf === '0';
   const items = P.rows.map(r => [r, R.items[r.sym]]).filter(([, it]) => it);
   if (!items.length) return '';
   if (!items.some(([r]) => r.sym === S.comp)) S.comp = [...items].sort((a, b) => b[0].mv - a[0].mv)[0][0].sym;
@@ -915,7 +965,7 @@ function simInit(force) {
 function simHTML() {
   if (!window.SimCore || !D.sim) return '';
   simInit(false);
-  const P = PF(), mine = P === PFS()[0], cand = D.sim.cand, base = Object.fromEntries(P.rows.map(r => [r.sym, r.mv]));
+  const P = PF(), mine = PFS()[+S.pf] == null || S.pf === '0', cand = D.sim.cand, base = Object.fromEntries(P.rows.map(r => [r.sym, r.mv]));
   const A = SimCore.compute(D, base), B = SimCore.compute(D, S.sim);
   const X = B && SimCore.compute(D, { SPY: B.total });
   simRes = { A, B, X };
@@ -1361,6 +1411,7 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   if (e.target.id === 'corrSel') { S.corrPair = e.target.value; render(); }
   if (e.target.id === 'compSel') { S.comp = e.target.value; render(); }
+  if (e.target.id === 'nsymSel') { S.nsym = e.target.value; render(); }
   if (e.target.classList.contains('simAmt')) { S.sim[e.target.dataset.sym] = Math.max(0, +e.target.value || 0); render(); }
   if (e.target.id === 'projAporte' || e.target.id === 'projMeta') {
     S[e.target.id] = String(Math.max(0, +e.target.value || 0));
